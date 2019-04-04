@@ -449,4 +449,3 @@ void UCTNode::wait_expanded() {
 #endif
     assert(v == ExpandState::EXPANDED);
 }
-

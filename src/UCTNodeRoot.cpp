@@ -186,7 +186,6 @@ void UCTNode::prepare_root_node(Network & network, int color,
     float root_eval;
     const auto had_children = has_children();
     if (expandable()) {
-//Utils::myprintf("m_min_psa_ratio_children=%f\n",m_min_psa_ratio_children.load());
 //        create_children(network, nodes, root_state, root_eval);
         create_children(network, nodes, root_state, root_eval, color);
     }

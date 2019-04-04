@@ -154,12 +154,11 @@ void Utils::gtp_printf_raw(const char *fmt, ...) {
 }
 
 void Utils::gtp_fail_printf(int id, const char *fmt, ...) {
-fprintf(stderr, "7\n");
     va_list ap;
     va_start(ap, fmt);
     gtp_base_printf(id, "?", fmt, ap);
     va_end(ap);
-fprintf(stderr, "8\n");}
+}
 
 void Utils::log_input(const std::string& input) {
     if (cfg_logfile_handle) {

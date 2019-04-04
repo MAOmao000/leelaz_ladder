@@ -29,6 +29,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <signal.h>
 
 #include "GTP.h"
 #include "GameState.h"
@@ -42,7 +43,20 @@
 #include "Ray/GoBoard.h"
 #include "Ray/ZobristHash.h"
 
+#define ALT_STACK_SIZE (4096*8)
+#define ALLOCA_SIZE    (1024*2)
+
 using namespace Utils;
+
+#ifndef _WIN32
+    static void signal_handler(int sig, siginfo_t* sig_info, void* sig_data) {
+    if( sig == SIGSEGV ) {
+        fprintf(stderr, "SEGV: %p\n", sig_info->si_addr );
+        fflush(stderr);
+        exit(1);
+    }
+}
+#endif
 
 static void license_blurb() {
     printf(
@@ -478,6 +492,30 @@ void benchmark(GameState& game) {
 }
 
 int main(int argc, char *argv[]) {
+#ifndef _WIN32
+    stack_t ss;
+    ss.ss_sp    = malloc(ALT_STACK_SIZE);
+    ss.ss_size  = ALT_STACK_SIZE;
+    ss.ss_flags = 0;
+    if ( sigaltstack(&ss, NULL)) {
+        fprintf(stderr, "Failed sigaltstack\n" );
+        exit(1);
+    }
+    struct sigaction newAct, oldAct;
+    if ( sigaction( SIGSEGV, NULL, &oldAct ) == -1 ) {
+        fprintf(stderr, "Failed to acquire the current sigaction_t.\n" );
+        exit(1);
+    }
+    sigemptyset(&newAct.sa_mask);
+    sigaddset(&newAct.sa_mask, SIGSEGV);
+    newAct.sa_sigaction = signal_handler;
+    newAct.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+    if ( sigaction( SIGSEGV, &newAct, NULL ) == -1 ) {
+        fprintf(stderr, "Failed to set my signal handler.\n" );
+        exit(1);
+    }
+#endif
+
     // Set up engine parameters
     GTP::setup_default_parameters();
     parse_commandline(argc, argv);
@@ -527,7 +565,7 @@ int main(int argc, char *argv[]) {
             Utils::log_input(input);
             GTP::execute(*maingame, input);
         } else {
-fprintf(stderr, "eof or other error.\n");
+            myprintf("eof or other error.\n");
             // eof or other error
             std::cout << std::endl;
             break;

@@ -334,7 +334,6 @@ std::pair<int, int> Network::load_network_file(const std::string& filename) {
     std::vector<char> chunkBuffer(chunkBufferSize);
     while (true) {
         auto bytesRead = gzread(gzhandle, chunkBuffer.data(), chunkBufferSize);
-//myprintf("bytesRead:%d\n",bytesRead);104857600 209715200
         if (bytesRead == 0) break;
         if (bytesRead < 0) {
             myprintf("Failed to decompress or read: %s\n", filename.c_str());
@@ -374,7 +373,7 @@ myprintf("buffer size:%d\n",size);
             return load_v1_network(buffer);
         }
     }
-myprintf("std::getline error!(line:%s)\n",line.c_str());
+    myprintf("std::getline error!(line:%s)\n",line.c_str());
     return {0, 0};
 }
 
@@ -522,7 +521,7 @@ void Network::initialize(int playouts, const std::string & weightsfile) {
     size_t channels, residual_blocks;
     std::tie(channels, residual_blocks) = load_network_file(weightsfile);
     if (channels == 0) {
-myprintf("channels == 0!\n");
+        myprintf("channels == 0!\n");
         exit(EXIT_FAILURE);
     }
 
