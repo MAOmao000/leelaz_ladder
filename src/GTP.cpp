@@ -163,7 +163,7 @@ void GTP::setup_default_parameters() {
     cfg_ladder_attack = 10;
     cfg_ladder_depth = 200;
     cfg_select_visits = 50;
-    cfg_select_policy = 50;
+    cfg_select_policy = 1;
     cfg_vis_rate = 0;
     cfg_playouts_rate = 70;
     cfg_additional_playouts = 0;
