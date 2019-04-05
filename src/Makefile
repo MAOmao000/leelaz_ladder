@@ -3,8 +3,8 @@ THE_OS := $(shell uname -s)
 default:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) CC=gcc CXX=g++ \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -g -Ofast -ffast-math -flto -fopenmp -mtune=native -march=native -mfpmath=both -std=c++14 -DNDEBUG -DUSE_CPU_ONLY -DUSE_BLAS' \
-		LDFLAGS='$(LDFLAGS) -g -flto -fopenmp' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -O3 -g -ffast-math -flto -march=native -std=c++14 -DNDEBUG'  \
+		LDFLAGS='$(LDFLAGS) -flto -g' \
 		leelaz
 
 debug:
@@ -26,7 +26,7 @@ LIBS =
 
 ifeq ($(THE_OS),Linux)
 # for Linux with OpenBLAS
-	CXXFLAGS += -I/usr/include/openblas
+	CXXFLAGS += -I/usr/include/openblas -I./Eigen
 	DYNAMIC_LIBS += -lopenblas
 	DYNAMIC_LIBS += -lOpenCL
 endif
@@ -39,16 +39,11 @@ ifeq ($(THE_OS),Darwin)
 endif
 
 # for MKL instead of OpenBLAS
-#MKLROOT = /opt/intel/mkl/lib/intel64_lin
-#DYNAMIC_LIBS += -Wl,--start-group ${MKLROOT}/libmkl_intel_ilp64.a ${MKLROOT}/libmkl_intel_thread.a ${MKLROOT}/libmkl_core.a ${MKLROOT}/libmkl_intel_lp64.a ${MKLROOT}/libmkl_sequential.a -Wl,--end-group -lgomp -lm -ldl -lc
-#DYNAMIC_LIBS += -static-libgcc -Wl,-Bstatic -L/opt/intel/mkl/lib/intel_ilp64_lin/ -lmkl_core -lmkl_sequential -L/usr/lib/x86_64-linux-gnu/ -lc
 #DYNAMIC_LIBS += -lmkl_rt
 #CXXFLAGS += -I/opt/intel/mkl/include
-#LDFLAGS  += -L/opt/intel/mkl/lib/intel64_lin/
+#LDFLAGS  += -L/opt/intel/mkl/lib/intel64/
 
 CXXFLAGS += -I.
-CXXFLAGS += -I./Eigen
-CXXFLAGS += -I../
 CPPFLAGS += -MD -MP
 
 sources = Network.cpp FullBoard.cpp KoState.cpp Training.cpp \
@@ -67,7 +62,7 @@ deps = $(sources:%.cpp=%.d)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 leelaz: $(objects)
-	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS) $(DYNAMIC_LIBS) -L../Ray -lRay
+	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS) $(DYNAMIC_LIBS)
 
 clean:
 	-$(RM) leelaz $(objects) $(deps)

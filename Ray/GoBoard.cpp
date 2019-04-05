@@ -26,7 +26,7 @@ int first_move_candidates;  //
 
 double komi[S_WHITE + 1];          // 
 double dynamic_komi[S_WHITE + 1];  // 
-double default_komi = KOMI;        // 
+double default_komi = KOMI_RAY;        // 
 
 int board_pos_id[BOARD_MAX];  //  
 

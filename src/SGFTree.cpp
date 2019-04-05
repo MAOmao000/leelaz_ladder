@@ -1,6 +1,6 @@
 /*
     This file is part of Leela Zero.
-    Copyright (C) 2017-2018 Gian-Carlo Pascutto and contributors
+    Copyright (C) 2017-2019 Gian-Carlo Pascutto and contributors
 
     Leela Zero is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -14,6 +14,17 @@
 
     You should have received a copy of the GNU General Public License
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
+
+    Additional permission under GNU GPL version 3 section 7
+
+    If you modify this Program, or any covered work, by linking or
+    combining it with NVIDIA Corporation's libraries from the
+    NVIDIA CUDA Toolkit and/or the NVIDIA CUDA Deep Neural
+    Network library and/or the NVIDIA TensorRT inference library
+    (or a modified version of those libraries), containing parts covered
+    by the terms of the respective license agreement, the licensors of
+    this Program grant you additional permission to convey the resulting
+    work.
 */
 
 #include "config.h"
@@ -44,15 +55,15 @@ void SGFTree::init_state() {
     // Initialize with defaults.
     // The SGF might be missing boardsize or komi
     // which means we'll never initialize properly.
-    m_state.init_game(19, 7.5f);
+    m_state.init_game(std::min(BOARD_SIZE, 19), KOMI);
 }
 
-KoState * SGFTree::get_state() {
+const KoState * SGFTree::get_state(void) const {
     assert(m_initialized);
     return &m_state;
 }
 
-SGFTree * SGFTree::get_child(size_t count) {
+const SGFTree * SGFTree::get_child(size_t count) const {
     if (count < m_children.size()) {
         assert(m_initialized);
         return &(m_children[count]);
@@ -64,11 +75,15 @@ SGFTree * SGFTree::get_child(size_t count) {
 // This follows the entire line, and doesn't really need the intermediate
 // states, just the moves. As a consequence, states that contain more than
 // just moves won't have any effect.
-GameState SGFTree::follow_mainline_state(unsigned int movenum) {
-    auto link = static_cast<SGFTree*>(this);
+GameState SGFTree::follow_mainline_state(unsigned int movenum) const {
+    const auto* link = this;
     // This initializes a starting state from a KoState and
     // sets up the game history.
     GameState result(get_state());
+
+    if (m_timecontrol_ptr) {
+        result.set_timecontrol(*m_timecontrol_ptr);
+    }
 
     for (unsigned int i = 0; i <= movenum && link != nullptr; i++) {
         // root position has no associated move
@@ -136,13 +151,13 @@ void SGFTree::populate_states() {
     // board size
     it = m_properties.find("SZ");
     if (it != end(m_properties)) {
-        std::string size = it->second;
+        const auto size = it->second;
         std::istringstream strm(size);
         int bsize;
         strm >> bsize;
         if (bsize == BOARD_SIZE) {
-            // Assume 7.5 komi if not specified
-            m_state.init_game(bsize, 7.5f);
+            // Assume default komi in config.h if not specified
+            m_state.init_game(bsize, KOMI);
             valid_size = true;
         } else {
             throw std::runtime_error("Board size not supported.");
@@ -152,13 +167,13 @@ void SGFTree::populate_states() {
     // komi
     it = m_properties.find("KM");
     if (it != end(m_properties)) {
-        std::string foo = it->second;
+        const auto foo = it->second;
         std::istringstream strm(foo);
         float komi;
         strm >> komi;
-        int handicap = m_state.get_handicap();
+        const auto handicap = m_state.get_handicap();
         // last ditch effort: if no GM or SZ, assume 19x19 Go here
-        int bsize = 19;
+        auto bsize = 19;
         if (valid_size) {
             bsize = m_state.board.get_boardsize();
         }
@@ -170,10 +185,31 @@ void SGFTree::populate_states() {
         }
     }
 
+    // time
+    it = m_properties.find("TM");
+    if (it != end(m_properties)) {
+        const auto maintime = it->second;
+        it = m_properties.find("OT");
+        const auto byoyomi = (it != end(m_properties)) ? it->second : "";
+        it = m_properties.find("BL");
+        const auto black_time_left = (it != end(m_properties)) ? it->second : "";
+        it = m_properties.find("WL");
+        const auto white_time_left = (it != end(m_properties)) ? it->second : "";
+        it = m_properties.find("OB");
+        const auto black_moves_left = (it != end(m_properties)) ? it->second : "";
+        it = m_properties.find("OW");
+        const auto white_moves_left = (it != end(m_properties)) ? it->second : "";
+        m_timecontrol_ptr = TimeControl::make_from_text_sgf(maintime, byoyomi,
+                                                            black_time_left,
+                                                            white_time_left,
+                                                            black_moves_left,
+                                                            white_moves_left);
+    }
+
     // handicap
     it = m_properties.find("HA");
     if (it != end(m_properties)) {
-        std::string size = it->second;
+        const auto size = it->second;
         std::istringstream strm(size);
         float handicap;
         strm >> handicap;
@@ -184,7 +220,7 @@ void SGFTree::populate_states() {
     // result
     it = m_properties.find("RE");
     if (it != end(m_properties)) {
-        std::string result = it->second;
+        const auto result = it->second;
         if (boost::algorithm::find_first(result, "Time")) {
             // std::cerr << "Skipping: " << result << std::endl;
             m_winner = FastBoard::EMPTY;
@@ -215,22 +251,22 @@ void SGFTree::populate_states() {
     }
     // Loop through the stone list and apply
     for (auto pit = prop_pair_ab.first; pit != prop_pair_ab.second; ++pit) {
-        auto move = pit->second;
-        int vtx = string_to_vertex(move);
+        const auto move = pit->second;
+        const auto vtx = string_to_vertex(move);
         apply_move(FastBoard::BLACK, vtx);
     }
 
     // XXX: count handicap stones
     const auto& prop_pair_aw = m_properties.equal_range("AW");
     for (auto pit = prop_pair_aw.first; pit != prop_pair_aw.second; ++pit) {
-        auto move = pit->second;
-        int vtx = string_to_vertex(move);
+        const auto move = pit->second;
+        const auto vtx = string_to_vertex(move);
         apply_move(FastBoard::WHITE, vtx);
     }
 
     it = m_properties.find("PL");
     if (it != end(m_properties)) {
-        std::string who = it->second;
+        const auto who = it->second;
         if (who == "W") {
             m_state.set_to_move(FastBoard::WHITE);
         } else if (who == "B") {
@@ -245,7 +281,7 @@ void SGFTree::populate_states() {
 
         // XXX: maybe move this to the recursive call
         // get move for side to move
-        auto colored_move = child_state.get_colored_move();
+        const auto colored_move = child_state.get_colored_move();
         if (colored_move.first != FastBoard::INVAL) {
             child_state.apply_move(colored_move.first, colored_move.second);
         }
@@ -257,6 +293,7 @@ void SGFTree::populate_states() {
 void SGFTree::copy_state(const SGFTree& tree) {
     m_initialized = tree.m_initialized;
     m_state = tree.m_state;
+    m_timecontrol_ptr = tree.m_timecontrol_ptr;
 }
 
 void SGFTree::apply_move(int color, int move) {
@@ -337,7 +374,7 @@ int SGFTree::string_to_vertex(const std::string& movestring) const {
     return vtx;
 }
 
-int SGFTree::get_move(int tomove) {
+int SGFTree::get_move(int tomove) const {
     std::string colorstring;
 
     if (tomove == FastBoard::BLACK) {
@@ -347,7 +384,6 @@ int SGFTree::get_move(int tomove) {
     }
 
     auto it = m_properties.find(colorstring);
-
     if (it != end(m_properties)) {
         std::string movestring = it->second;
         return string_to_vertex(movestring);
@@ -373,10 +409,10 @@ FastBoard::vertex_t SGFTree::get_winner() const {
     return m_winner;
 }
 
-std::vector<int> SGFTree::get_mainline() {
+std::vector<int> SGFTree::get_mainline() const {
     std::vector<int> moves;
 
-    auto link = this;
+    const auto* link = this;
     auto tomove = link->m_state.get_to_move();
     link = link->get_child(0);
 

@@ -1,6 +1,6 @@
 /*
     This file is part of Leela Zero.
-    Copyright (C) 2017-2018 Gian-Carlo Pascutto and contributors
+    Copyright (C) 2017-2019 Gian-Carlo Pascutto and contributors
 
     Leela Zero is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -14,6 +14,17 @@
 
     You should have received a copy of the GNU General Public License
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
+
+    Additional permission under GNU GPL version 3 section 7
+
+    If you modify this Program, or any covered work, by linking or
+    combining it with NVIDIA Corporation's libraries from the
+    NVIDIA CUDA Toolkit and/or the NVIDIA CUDA Deep Neural
+    Network library and/or the NVIDIA TensorRT inference library
+    (or a modified version of those libraries), containing parts covered
+    by the terms of the respective license agreement, the licensors of
+    this Program grant you additional permission to convey the resulting
+    work.
 */
 
 #ifndef UCTNODE_H_INCLUDED
@@ -48,6 +59,7 @@ public:
                          std::atomic<int>& nodecount,
                          GameState& state, float& eval,
                          float min_psa_ratio = 0.0f);
+
 */
     bool create_children(Network & network,
                          std::atomic<int>& nodecount,
@@ -56,7 +68,7 @@ public:
                          float min_psa_ratio = 0.0f);
 
     const std::vector<UCTNodePointer>& get_children() const;
-    void sort_children(int color);
+    void sort_children(int color, float lcb_min_visits);
     UCTNode& get_best_root_child(int color);
     UCTNode* uct_select_child(int color, bool is_root);
 
@@ -72,12 +84,14 @@ public:
     int get_visits() const;
     float get_policy() const;
     void set_policy(float policy);
+    float get_eval_variance(float default_var = 0.0f) const;
     float get_eval(int tomove) const;
     float get_raw_eval(int tomove, int virtual_loss = 0) const;
     float get_net_eval(int tomove) const;
     void virtual_loss();
     void virtual_loss_undo();
     void update(float eval);
+    float get_eval_lcb(int color) const;
 
     // Defined in UCTNodeRoot.cpp, only to be called on m_root in UCTSearch
     void randomize_first_proportionally();
@@ -102,7 +116,7 @@ private:
                        float min_psa_ratio);
     double get_blackevals() const;
     void accumulate_eval(float eval);
-    void kill_superkos(const KoState& state);
+    void kill_superkos(const GameState& state);
     void dirichlet_noise(float epsilon, float alpha);
 
     // Note : This class is very size-sensitive as we are going to create
@@ -118,6 +132,10 @@ private:
     float m_policy;
     // Original net eval for this node (not children).
     float m_net_eval{0.0f};
+    // Variable used for calculating variance of evaluations.
+    // Initialized to small non-zero value to avoid accidental zero variances
+    // at low visits.
+    std::atomic<float> m_squared_eval_diff{1e-4f};
     std::atomic<double> m_blackevals{0.0};
     std::atomic<Status> m_status{ACTIVE};
 

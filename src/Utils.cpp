@@ -1,6 +1,6 @@
 /*
     This file is part of Leela Zero.
-    Copyright (C) 2017-2018 Gian-Carlo Pascutto and contributors
+    Copyright (C) 2017-2019 Gian-Carlo Pascutto and contributors
 
     Leela Zero is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -14,6 +14,17 @@
 
     You should have received a copy of the GNU General Public License
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
+
+    Additional permission under GNU GPL version 3 section 7
+
+    If you modify this Program, or any covered work, by linking or
+    combining it with NVIDIA Corporation's libraries from the
+    NVIDIA CUDA Toolkit and/or the NVIDIA CUDA Deep Neural
+    Network library and/or the NVIDIA TensorRT inference library
+    (or a modified version of those libraries), containing parts covered
+    by the terms of the respective license agreement, the licensors of
+    this Program grant you additional permission to convey the resulting
+    work.
 */
 
 #include "config.h"
@@ -24,6 +35,7 @@
 #include <cstdio>
 
 #include <boost/filesystem.hpp>
+#include <boost/math/distributions/students_t.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -37,6 +49,30 @@
 #include "GTP.h"
 
 Utils::ThreadPool thread_pool;
+
+auto constexpr z_entries = 1000;
+std::array<float, z_entries> z_lookup;
+
+void Utils::create_z_table() {
+    for (auto i = 1; i < z_entries + 1; i++) {
+        boost::math::students_t dist(i);
+        auto z = boost::math::quantile(boost::math::complement(dist, cfg_ci_alpha));
+        z_lookup[i - 1] = z;
+    }
+}
+
+float Utils::cached_t_quantile(int v) {
+    if (v < 1) {
+        return z_lookup[0];
+    }
+    if (v < z_entries) {
+        return z_lookup[v - 1];
+    }
+    // z approaches constant when v is high enough.
+    // With default lookup table size the function is flat enough that we
+    // can just return the last entry for all v bigger than it.
+    return z_lookup[z_entries - 1];
+}
 
 bool Utils::input_pending() {
 #ifdef HAVE_SELECT
@@ -177,7 +213,7 @@ size_t Utils::ceilMultiple(size_t a, size_t b) {
 }
 
 const std::string Utils::leelaz_file(std::string file) {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__ANDROID__)
     boost::filesystem::path dir(boost::filesystem::current_path());
 #else
     // https://stackoverflow.com/a/26696759

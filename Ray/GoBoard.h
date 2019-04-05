@@ -34,7 +34,7 @@ const int MAX_MOVES = (MAX_RECORDS - 1);      //
 const int PASS = 0;     // 
 const int RESIGN = -1;  // 
 
-const double KOMI = 6.5; // 
+const double KOMI_RAY = 6.5; // 
 
 const int MOVE_DISTANCE_MAX = 16; // 4bit
 

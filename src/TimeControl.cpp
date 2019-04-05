@@ -1,6 +1,6 @@
 /*
     This file is part of Leela Zero.
-    Copyright (C) 2017-2018 Gian-Carlo Pascutto and contributors
+    Copyright (C) 2017-2019 Gian-Carlo Pascutto and contributors
 
     Leela Zero is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -14,13 +14,27 @@
 
     You should have received a copy of the GNU General Public License
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
+
+    Additional permission under GNU GPL version 3 section 7
+
+    If you modify this Program, or any covered work, by linking or
+    combining it with NVIDIA Corporation's libraries from the
+    NVIDIA CUDA Toolkit and/or the NVIDIA CUDA Deep Neural
+    Network library and/or the NVIDIA TensorRT inference library
+    (or a modified version of those libraries), containing parts covered
+    by the terms of the respective license agreement, the licensors of
+    this Program grant you additional permission to convey the resulting
+    work.
 */
 
 #include "TimeControl.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdlib>
-#include <algorithm>
+#include <memory>
+#include <regex>
+#include <sstream>
 
 #include "GTP.h"
 #include "Timing.h"
@@ -38,22 +52,89 @@ TimeControl::TimeControl(int maintime, int byotime,
     reset_clocks();
 }
 
-std::string TimeControl::to_text_sgf() const {
-    if (m_byotime != 0 && m_byostones == 0 && m_byoperiods == 0) {
-        return ""; // infinite
-    }
-    auto s = "TM[" + std::to_string(m_maintime/100) + "]";
-    if (m_byotime) {
+std::string TimeControl::stones_left_to_text_sgf(const int color) const {
+    auto s = std::string{};
+    // We must be in byo-yomi before interpreting stones.
+    if (m_inbyo[color]) {
+        const auto c = color == FastBoard::BLACK ? "OB[" : "OW[";
         if (m_byostones) {
-            s += "OT[" + std::to_string(m_byostones) + "/";
-            s += std::to_string(m_byotime/100) + " Canadian]";
-        } else {
-            assert(m_byoperiods);
-            s += "OT[" + std::to_string(m_byoperiods) + "x";
-            s += std::to_string(m_byotime/100) + " byo-yomi]";
+            s += c + std::to_string(m_stones_left[color]) + "]";
+        } else if (m_byoperiods) {
+            // KGS extension.
+            s += c + std::to_string(m_periods_left[color]) + "]";
         }
     }
     return s;
+}
+
+std::string TimeControl::to_text_sgf() const {
+    if (m_byotime != 0 && m_byostones == 0 && m_byoperiods == 0) {
+        return ""; // Infinite time.
+    }
+    auto s = "TM[" + std::to_string(m_maintime / 100) + "]";
+    if (m_byotime) {
+        if (m_byostones) {
+            s += "OT[" + std::to_string(m_byostones) + "/";
+            s += std::to_string(m_byotime / 100) + " Canadian]";
+        } else {
+            assert(m_byoperiods);
+            s += "OT[" + std::to_string(m_byoperiods) + "x";
+            s += std::to_string(m_byotime / 100) + " byo-yomi]";
+        }
+        s += stones_left_to_text_sgf(FastBoard::BLACK);
+        s += stones_left_to_text_sgf(FastBoard::WHITE);
+    }
+    // Generously round up to avoid a remaining time of 0 triggering byo-yomi
+    // to be started when the sgf is loaded. This happens because byo-yomi
+    // stones have to be only written to the sgf when actually in byo-yomi
+    // and this is interpreted in adjust_time() as a special case
+    // that starts byo-yomi.
+    const auto black_time_left = (m_remaining_time[FastBoard::BLACK] + 99) / 100;
+    const auto white_time_left = (m_remaining_time[FastBoard::WHITE] + 99) / 100;
+    s += "BL[" + std::to_string(black_time_left) + "]";
+    s += "WL[" + std::to_string(white_time_left) + "]";
+    return s;
+}
+
+std::shared_ptr<TimeControl> TimeControl::make_from_text_sgf(
+    const std::string& maintime, const std::string& byoyomi,
+    const std::string& black_time_left, const std::string& white_time_left,
+    const std::string& black_moves_left, const std::string& white_moves_left) {
+    const auto maintime_centis = std::stoi(maintime) * 100;
+    auto byotime = 0;
+    auto byostones = 0;
+    auto byoperiods = 0;
+    if (!byoyomi.empty()) {
+        std::smatch m;
+        const auto re_canadian = std::regex{"(\\d+)/(\\d+) Canadian"};
+        const auto re_byoyomi = std::regex{"(\\d+)x(\\d+) byo-yomi"};
+        if (std::regex_match(byoyomi, m, re_canadian)) {
+            byostones = std::stoi(m[1]);
+            byotime = std::stoi(m[2]) * 100;
+        } else if (std::regex_match(byoyomi, m, re_byoyomi)) {
+            byoperiods = std::stoi(m[1]);
+            byotime = std::stoi(m[2]) * 100;
+        } else {
+            // Unrecognised byo-yomi syntax.
+        }
+    }
+    const auto timecontrol_ptr = std::make_shared<TimeControl>(maintime_centis,
+                                                               byotime,
+                                                               byostones,
+                                                               byoperiods);
+    if (!black_time_left.empty()) {
+        const auto time = std::stoi(black_time_left) * 100;
+        const auto stones = black_moves_left.empty() ?
+                            0 : std::stoi(black_moves_left);
+        timecontrol_ptr->adjust_time(FastBoard::BLACK, time, stones);
+    }
+    if (!white_time_left.empty()) {
+        const auto time = std::stoi(white_time_left) * 100;
+        const auto stones = white_moves_left.empty() ?
+                            0 : std::stoi(white_moves_left);
+        timecontrol_ptr->adjust_time(FastBoard::WHITE, time, stones);
+    }
+    return timecontrol_ptr;
 }
 
 void TimeControl::reset_clocks() {
