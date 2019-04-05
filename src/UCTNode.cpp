@@ -387,6 +387,29 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
     return best->get();
 }
 
+class NodeComp0 : public std::binary_function<UCTNodePointer&,
+                                              UCTNodePointer&, bool> {
+public:
+    NodeComp0(int color) : m_color(color) {};
+    bool operator()(const UCTNodePointer& a,
+                    const UCTNodePointer& b) {
+        // if visits are not same, sort on visits
+        if (a.get_visits() != b.get_visits()) {
+            return a.get_visits() < b.get_visits();
+        }
+
+        // neither has visits, sort on policy prior
+        if (a.get_visits() == 0) {
+            return a.get_policy() < b.get_policy();
+        }
+
+        // both have same non-zero number of visits
+        return a.get_eval(m_color) < b.get_eval(m_color);
+    }
+private:
+    int m_color;
+};
+
 class NodeComp : public std::binary_function<UCTNodePointer&,
                                              UCTNodePointer&, bool> {
 public:
@@ -433,6 +456,10 @@ private:
     int m_color;
     float m_lcb_min_visits;
 };
+
+void UCTNode::sort_children(int color) {
+    std::stable_sort(rbegin(m_children), rend(m_children), NodeComp0(color));
+}
 
 void UCTNode::sort_children(int color, float lcb_min_visits) {
     std::stable_sort(rbegin(m_children), rend(m_children), NodeComp(color, lcb_min_visits));

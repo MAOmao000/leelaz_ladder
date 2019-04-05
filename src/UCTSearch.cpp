@@ -304,7 +304,11 @@ void UCTSearch::dump_stats(FastState & state, UCTNode & parent) {
     }
 
     // sort children, put best move on top
-    parent.sort_children(color, cfg_lcb_min_visit_ratio * max_visits);
+    if (cfg_vis_rate < 0) {
+        parent.sort_children(color, cfg_lcb_min_visit_ratio * max_visits);
+    } else {
+        parent.sort_children(color);
+    }
 
     if (parent.get_first_child()->first_visit()) {
         return;
@@ -488,7 +492,11 @@ int UCTSearch::get_best_move(passflag_t passflag) {
     }
 
     // Make sure best is first
-    m_root->sort_children(color,  cfg_lcb_min_visit_ratio * max_visits);
+    if (cfg_vis_rate < 0) {
+        m_root->sort_children(color, cfg_lcb_min_visit_ratio * max_visits);
+    } else {
+        m_root->sort_children(color);
+    }
 
     // Check whether to randomize the best move proportional
     // to the playout counts, early game only.
@@ -1178,7 +1186,11 @@ int UCTSearch::think(int color, passflag_t passflag) {
     for (const auto& node : m_root->get_children()) {
         max_visits = std::max(max_visits, node->get_visits());
     }
-    m_root->sort_children(color,  cfg_lcb_min_visit_ratio * max_visits);
+    if (cfg_vis_rate < 0) {
+        m_root->sort_children(color,  cfg_lcb_min_visit_ratio * max_visits);
+    } else {
+        m_root->sort_children(color);
+    }
     int bestvis = 0;
     float bestwin = 0.0f;
     float savewin = 0.0f;
