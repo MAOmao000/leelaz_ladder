@@ -108,7 +108,7 @@ private:
 
 UCTSearch::UCTSearch(GameState& g, Network& network)
     : m_rootstate(g), m_network(network) {
-    myprintf("Program Version %s%s\n", PROGRAM_VERSION, ".1");
+    myprintf("Program Version %s%s\n", PROGRAM_VERSION, ".2");
     set_playout_limit(cfg_max_playouts);
     set_visit_limit(cfg_max_visits);
 
@@ -244,28 +244,11 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
         } else {
             float eval;
             const auto had_children = node->has_children();
-/*
             const auto success =
                 node->create_children(m_network, m_nodes, currstate, eval,
                                       get_min_psa_ratio());
             if (!had_children && success) {
                 result = SearchResult::from_eval(eval);
-            }
-*/
-            if (cfg_ladder_check == 2) {
-                const auto success =
-                    node->create_children(m_network, m_nodes, currstate, eval,
-                                          FastBoard::INVAL, get_min_psa_ratio());
-                if (!had_children && success) {
-                    result = SearchResult::from_eval(eval);
-                }
-            } else {
-                const auto success =
-                    node->create_children(m_network, m_nodes, currstate, eval,
-                                          mycolor, get_min_psa_ratio());
-                if (!had_children && success) {
-                    result = SearchResult::from_eval(eval);
-                }
             }
         }
     }
@@ -304,11 +287,7 @@ void UCTSearch::dump_stats(FastState & state, UCTNode & parent) {
     }
 
     // sort children, put best move on top
-    if (cfg_vis_rate < 0) {
-        parent.sort_children(color, cfg_lcb_min_visit_ratio * max_visits);
-    } else {
-        parent.sort_children(color);
-    }
+    parent.sort_children(color, cfg_lcb_min_visit_ratio * max_visits);
 
     if (parent.get_first_child()->first_visit()) {
         return;
@@ -492,11 +471,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
     }
 
     // Make sure best is first
-    if (cfg_vis_rate < 0) {
-        m_root->sort_children(color, cfg_lcb_min_visit_ratio * max_visits);
-    } else {
-        m_root->sort_children(color);
-    }
+    m_root->sort_children(color, cfg_lcb_min_visit_ratio * max_visits);
 
     // Check whether to randomize the best move proportional
     // to the playout counts, early game only.
@@ -838,11 +813,11 @@ int UCTSearch::think(int color, passflag_t passflag) {
     auto last_update = 0;
 */
     auto last_output = 0;
-/*
     do {
         auto currstate = std::make_unique<GameState>(m_rootstate);
 
-        auto result = play_simulation(*currstate, m_root.get());
+//        auto result = play_simulation(*currstate, m_root.get());
+        auto result = play_simulation(*currstate, m_root.get(), color);
         if (result.valid()) {
             increment_playouts();
         }
@@ -858,10 +833,12 @@ int UCTSearch::think(int color, passflag_t passflag) {
 
         // output some stats every few seconds
         // check if we should still search
+/* skip log
         if (!cfg_quiet && elapsed_centis - last_update > 250) {
             last_update = elapsed_centis;
             myprintf("%s\n", get_analysis(m_playouts.load()).c_str());
         }
+*/
         keeprunning  = is_running();
         keeprunning &= !stop_thinking(elapsed_centis, time_for_move);
         keeprunning &= have_alternate_moves(elapsed_centis, time_for_move);
@@ -892,7 +869,7 @@ int UCTSearch::think(int color, passflag_t passflag) {
 
     Time elapsed;
     int elapsed_centis = Time::timediff_centis(start, elapsed);
-    myprintf("%d visits, %d nodes, %d playouts, %.0f n/s\n\n",
+    myprintf("%d visits, %d nodes, %d playouts, %.2f n/s\n\n",
              m_root->get_visits(),
              m_nodes.load(),
              m_playouts.load(),
@@ -919,344 +896,6 @@ int UCTSearch::think(int color, passflag_t passflag) {
 
     // Copy the root state. Use to check for tree re-use in future calls.
     m_last_rootstate = std::make_unique<GameState>(m_rootstate);
-    return bestmove;
-*/
-    if (cfg_playouts_rate <= 0) {
-        /* single playout */
-        do {
-            auto currstate = std::make_unique<GameState>(m_rootstate);
-            auto result = play_simulation(*currstate, m_root.get(), color);
-            if (result.valid()) {
-                increment_playouts();
-            }
-            Time elapsed;
-            int elapsed_centis = Time::timediff_centis(start, elapsed);
-            if (cfg_analyze_tags.interval_centis() &&
-                elapsed_centis - last_output > cfg_analyze_tags.interval_centis()) {
-                last_output = elapsed_centis;
-                output_analysis(m_rootstate, *m_root);
-            }
-            keeprunning  = is_running();
-            keeprunning &= !stop_thinking(elapsed_centis, time_for_move);
-            keeprunning &= have_alternate_moves(elapsed_centis, time_for_move);
-        } while (keeprunning);
-        // stop the search
-        m_run = false;
-        tg.wait_all();
-        /* additional playout */
-        if (cfg_additional_playouts > 0 &&
-            m_root->get_children().size() > 1 &&
-            m_root->get_children()[1]->get_visits() > 0 &&
-            (m_rootstate.m_komove != FastBoard::NO_VERTEX ||
-             m_root->get_children()[0]->get_raw_eval(color) < m_last_win - cfg_win_divergence)) {
-            int playouts = m_playouts;
-            m_run = true;
-            ThreadGroup tgn(thread_pool);
-            for (int i = 1; i < cpus; i++) {
-                tgn.add_task(UCTWorker(m_rootstate, this, m_root.get()));
-            }
-            keeprunning = true;
-            do {
-                auto currstate = std::make_unique<GameState>(m_rootstate);
-                auto result = play_simulation(*currstate, m_root.get(), color);
-                if (result.valid()) {
-                    increment_playouts();
-                }
-                Time elapsed;
-                int elapsed_centis = Time::timediff_centis(start, elapsed);
-                if (cfg_analyze_tags.interval_centis() &&
-                    elapsed_centis - last_output > cfg_analyze_tags.interval_centis()) {
-                    last_output = elapsed_centis;
-                    output_analysis(m_rootstate, *m_root);
-                }
-                keeprunning  = is_running();
-                keeprunning &= (m_playouts < playouts + cfg_additional_playouts);
-            } while (keeprunning);
-            m_run = false;
-            tgn.wait_all();
-        }
-        // reactivate all pruned root children
-        for (const auto& node : m_root->get_children()) {
-            node->set_active(true);
-        }
-        m_rootstate.stop_clock(color);
-        if (!m_root->has_children()) {
-            return FastBoard::PASS;
-        }
-        // display search info
-        myprintf("\n");
-        dump_stats(m_rootstate, *m_root);
-        Training::record(m_network, m_rootstate, *m_root);
-        Time elapsed1;
-        int elapsed_centis = Time::timediff_centis(start, elapsed1);
-        if (elapsed_centis+1 > 0) {
-            myprintf("%d visits, %d nodes, %d playouts, %.2f n/s\n",
-                     m_root->get_visits(),
-                     static_cast<int>(m_nodes),
-                     static_cast<int>(m_playouts),
-                     (m_playouts * 100.0) / (elapsed_centis+1));
-        }
-        int bestmove = get_best_move(passflag);
-        int savemove = bestmove;
-        int visrate = 0;
-        int min_vis_rate = 0;
-        bool first = true;
-        float bestwin = 0.0f;
-        for (const auto& node : m_root->get_children()) {
-            if (!node->get_visits()) {
-                break;
-            }
-            if (first) {
-                first = false;
-                visrate = node->get_visits();
-                bestwin = node->get_raw_eval(color);
-
-                if (cfg_vis_rate == 0) {
-                    if (m_last_win - bestwin >= 0.08f) {
-                        min_vis_rate = visrate * 25 / 100;
-                    } else if (m_last_win - bestwin >= 0.04f) {
-                        min_vis_rate = visrate * 30 / 100;
-                    } else if (m_last_win - bestwin >= 0.02f) {
-                        min_vis_rate = visrate * 35 / 100;
-                    } else if (m_last_win - bestwin >= 0.01f) {
-                        min_vis_rate = visrate * 40 / 100;
-                    } else if (m_last_win - bestwin > 0.0f) {
-                        min_vis_rate = visrate * 45 / 100;
-                    } else {
-                        min_vis_rate = visrate * 50 / 100;
-                    }
-                } else if (cfg_vis_rate < 0){
-                    break;
-                } else {
-                    if (node->get_policy() * 100 > cfg_select_policy) {
-                        break;
-                    }
-                    min_vis_rate = m_root->get_visits() * cfg_vis_rate / 100;
-                }
-                if (min_vis_rate < 3) {
-                    min_vis_rate = 3;
-                }
-            }
-            if (node->get_visits() < min_vis_rate) {
-                continue;
-            }
-            if (node->get_raw_eval(color) > bestwin) {
-                bestwin = node->get_raw_eval(color);
-                bestmove = node->get_move();
-            }
-        }
-        if (bestmove != savemove) {
-            if (should_resign(passflag, bestwin)) {
-                myprintf("Eval (%.2f%%) looks bad. Resigning.\n", 100.0f * bestwin);
-                bestmove = FastBoard::RESIGN;
-            }
-        }
-        myprintf("Best move: %s(%d), Win: %.2f%%\n",
-                 (m_rootstate.move_to_text(bestmove)).c_str(),
-                 m_rootstate.get_movenum()+1,
-                 bestwin*100.0f);
-        // Save the explanation.
-        m_think_output =
-            str(boost::format("move %d, %c => %s\n%s")
-            % m_rootstate.get_movenum()
-            % (color == FastBoard::BLACK ? 'B' : 'W')
-            % m_rootstate.move_to_text(bestmove).c_str()
-            % get_analysis(m_root->get_visits()).c_str());
-
-        // Copy the root state. Use to check for tree re-use in future calls.
-        m_last_rootstate = std::make_unique<GameState>(m_rootstate);
-        m_last_win = bestwin;
-        return bestmove;
-    }
-    /* 1'st playout */
-    do {
-        auto currstate = std::make_unique<GameState>(m_rootstate);
-        auto result = play_simulation(*currstate, m_root.get(), color);
-        if (result.valid()) {
-            increment_playouts();
-        }
-
-        Time elapsed;
-        int elapsed_centis = Time::timediff_centis(start, elapsed);
-
-        if (cfg_analyze_tags.interval_centis() &&
-            elapsed_centis - last_output > cfg_analyze_tags.interval_centis()) {
-            last_output = elapsed_centis;
-            output_analysis(m_rootstate, *m_root);
-        }
-
-        // output some stats every few seconds
-        // check if we should still search
-/* skip log
-        if (elapsed_centis - last_update > 250) {
-            last_update = elapsed_centis;
-            dump_analysis(static_cast<int>(m_playouts));
-        }
-*/
-        keeprunning  = is_running();
-        keeprunning &= !(m_playouts >= static_cast<int>(m_maxplayouts * (cfg_playouts_rate / 100.0f))
-                      || m_root->get_visits() >= static_cast<int>(m_maxvisits * (cfg_playouts_rate / 100.0f))
-                      || elapsed_centis >= static_cast<int>(time_for_move * (cfg_playouts_rate / 100.0f)));
-    } while (keeprunning);
-
-    // stop the search
-    m_run = false;
-    tg.wait_all();
-
-    /* 2'nd playout */
-    std::vector<int> vis1(FastBoard::NUM_VERTICES+1, 0);
-    std::vector<float> win1(FastBoard::NUM_VERTICES+1, 0.0f);
-    for (const auto& node : m_root->get_children()) {
-        if (!node->get_visits()) {
-            break;
-        }
-        vis1[node->get_move()+1] = node->get_visits();
-        win1[node->get_move()+1] = node->get_raw_eval(color);
-    }
-    m_run = true;
-    ThreadGroup tgn(thread_pool);
-    for (int i = 1; i < cpus; i++) {
-        tgn.add_task(UCTWorker(m_rootstate, this, m_root.get()));
-    }
-    keeprunning = true;
-    Time elapsed;
-/* skip log
-    last_update = Time::timediff_centis(start, elapsed);
-*/
-    last_output = Time::timediff_centis(start, elapsed);
-    do {
-        auto currstate = std::make_unique<GameState>(m_rootstate);
-        auto result = play_simulation(*currstate, m_root.get(), color);
-        if (result.valid()) {
-            increment_playouts();
-        }
-        Time elapsed;
-        int elapsed_centis = Time::timediff_centis(start, elapsed);
-        if (cfg_analyze_tags.interval_centis() &&
-            elapsed_centis - last_output > cfg_analyze_tags.interval_centis()) {
-            last_output = elapsed_centis;
-            output_analysis(m_rootstate, *m_root);
-        }
-/* skip log
-        if (elapsed_centis - last_update > 250) {
-            last_update = elapsed_centis;
-            dump_analysis(static_cast<int>(m_playouts));
-        }
-*/
-        keeprunning  = is_running();
-        keeprunning &= !stop_thinking(elapsed_centis, time_for_move);
-    } while (keeprunning);
-    m_run = false;
-    tgn.wait_all();
-
-   // reactivate all pruned root children
-   for (const auto& node : m_root->get_children()) {
-       node->set_active(true);
-   }
-
-   m_rootstate.stop_clock(color);
-   if (!m_root->has_children()) {
-       return FastBoard::PASS;
-   }
-
-    // display search info
-/* skip log
-    myprintf("\n");
-    dump_stats(m_rootstate, *m_root);
-*/
-    Training::record(m_network, m_rootstate, *m_root);
-
-/* skip log*/
-    Time elapsed2;
-    int elapsed_centis = Time::timediff_centis(start, elapsed2);
-    if (elapsed_centis+1 > 0) {
-        myprintf("%d visits, %d nodes, %d playouts, %.2f n/s\n",
-                 m_root->get_visits(),
-                 static_cast<int>(m_nodes),
-                 static_cast<int>(m_playouts),
-                 (m_playouts * 100.0) / (elapsed_centis+1));
-    }
-/**/
-    int savevis1 = 0;
-    int savevis2 = 0;
-    int bestmove = -1;
-    std::vector<int> vis2(FastBoard::NUM_VERTICES+1, 0);
-    std::vector<float> win2(FastBoard::NUM_VERTICES+1, 0.0f);
-    auto max_visits = 0;
-    for (const auto& node : m_root->get_children()) {
-        max_visits = std::max(max_visits, node->get_visits());
-    }
-    if (cfg_vis_rate < 0) {
-        m_root->sort_children(color,  cfg_lcb_min_visit_ratio * max_visits);
-    } else {
-        m_root->sort_children(color);
-    }
-    int bestvis = 0;
-    float bestwin = 0.0f;
-    float savewin = 0.0f;
-    for (const auto& node : m_root->get_children()) {
-        if (!node->get_visits()) {
-            break;
-        }
-        vis2[node->get_move()+1] = node->get_visits() - vis1[node->get_move()+1];
-        win2[node->get_move()+1] = node->get_raw_eval(color);
-        if (vis1[node->get_move()+1] <= 0) {
-            win1[node->get_move()+1] = win2[node->get_move()+1];
-        }
-        myprintf("%4s: %d/%d, V: %.2f%%(%.2f%%), N: %.2f%%\n",
-                 (m_rootstate.move_to_text(node->get_move()).c_str()),
-                 vis2[node->get_move()+1],
-                 node->get_visits(),
-                 win2[node->get_move()+1]*100.0f,
-                 win2[node->get_move()+1]*100.0f - win1[node->get_move()+1]*100.0f,
-                 node->get_policy() * 100.0f);
-        if (bestvis <= 0) {
-            if (vis2[node->get_move()+1] <= 0) {
-                continue;
-            }
-            bestmove = node->get_move();
-            bestvis = vis2[node->get_move()+1];
-            savevis1 = node->get_visits();
-            savevis2 = bestvis;
-            bestwin = node->get_raw_eval(color);
-            savewin = 2 * node->get_raw_eval(color) - win1[node->get_move()+1];
-        } else if (vis2[node->get_move()+1] < 3) {
-            continue;
-        } else if (vis2[node->get_move()+1] > bestvis &&
-                   node->get_policy() * 100 >= cfg_select_policy) {
-            bestmove = node->get_move();
-            bestwin = node->get_raw_eval(color);
-            savewin = 2 * node->get_raw_eval(color) - win1[node->get_move()+1];
-            bestvis = vis2[node->get_move()+1];
-        } else if (node->get_visits() >= savevis1 * cfg_select_visits / 100 &&
-                   vis2[node->get_move()+1] >= savevis2 * cfg_select_visits / 100 &&
-                   2 * node->get_raw_eval(color) - win1[node->get_move()+1] > savewin) {
-            bestmove = node->get_move();
-            bestwin = node->get_raw_eval(color);
-            savewin = 2 * node->get_raw_eval(color) - win1[node->get_move()+1];
-        }
-    }
-    if (should_resign(passflag, bestwin)) {
-        myprintf("Eval (%.2f%%) looks bad. Resigning.\n", 100.0f * bestwin);
-        bestmove = FastBoard::RESIGN;
-    }
-    // Save the explanation.
-    m_think_output =
-        str(boost::format("move %d, %c => %s\n%s")
-        % m_rootstate.get_movenum()
-        % (color == FastBoard::BLACK ? 'B' : 'W')
-        % m_rootstate.move_to_text(bestmove).c_str()
-        % get_analysis(m_root->get_visits()).c_str());
-
-    // Copy the root state. Use to check for tree re-use in future calls.
-    m_last_rootstate = std::make_unique<GameState>(m_rootstate);
-    m_last_win = bestwin;
-/* Add debug print */
-    myprintf("Best move: %s(%d), Win: %.2f%%\n",
-             (m_rootstate.move_to_text(bestmove)).c_str(),
-             m_rootstate.get_movenum()+1,
-             bestwin*100.0f);
-
     return bestmove;
 }
 

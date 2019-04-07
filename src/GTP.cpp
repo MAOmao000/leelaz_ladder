@@ -98,16 +98,10 @@ bool cfg_quiet;
 std::string cfg_options_str;
 bool cfg_benchmark;
 bool cfg_cpu_only;
-int cfg_ladder_check;
+bool cfg_ladder_check;
 int cfg_ladder_defense;
 int cfg_ladder_attack;
 int cfg_ladder_depth;
-int cfg_select_visits;
-int cfg_select_policy;
-int cfg_vis_rate;
-int cfg_playouts_rate;
-int cfg_additional_playouts;
-float cfg_win_divergence;
 AnalyzeTags cfg_analyze_tags;
 
 /* Parses tags for the lz-analyze GTP command and friends */
@@ -368,16 +362,10 @@ void GTP::setup_default_parameters() {
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     cfg_benchmark = false;
-    cfg_ladder_check = 3;
+    cfg_ladder_check = true;
     cfg_ladder_defense = 3;
     cfg_ladder_attack = 10;
     cfg_ladder_depth = 200;
-    cfg_select_visits = 50;
-    cfg_select_policy = 1;
-    cfg_vis_rate = 0;
-    cfg_playouts_rate = 70;
-    cfg_additional_playouts = 0;
-    cfg_win_divergence = 0.005f;
 #ifdef USE_CPU_ONLY
     cfg_cpu_only = true;
 #else

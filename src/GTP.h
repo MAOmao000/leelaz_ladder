@@ -122,16 +122,10 @@ extern FILE* cfg_logfile_handle;
 extern bool cfg_quiet;
 extern std::string cfg_options_str;
 extern bool cfg_benchmark;
-extern int cfg_ladder_check;
+extern bool cfg_ladder_check;
 extern int cfg_ladder_defense;
 extern int cfg_ladder_attack;
 extern int cfg_ladder_depth;
-extern int cfg_select_visits;
-extern int cfg_select_policy;
-extern int cfg_vis_rate;
-extern int cfg_playouts_rate;
-extern int cfg_additional_playouts;
-extern float cfg_win_divergence;
 extern bool cfg_cpu_only;
 extern AnalyzeTags cfg_analyze_tags;
 

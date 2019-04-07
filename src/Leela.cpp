@@ -181,29 +181,13 @@ static void parse_commandline(int argc, char *argv[]) {
 #ifndef USE_CPU_ONLY
         ("cpu-only", "Use CPU-only implementation and do not use OpenCL device(s).")
 #endif
-        ("ladder_check", po::value<int>()->default_value(cfg_ladder_check),
-                       "0 = Non check.\n"
-                       "1 = My stone only.\n"
-                       "2 = My stone and first search only.\n"
-                       "3 = All stone.\n")
+        ("ladder_check", "Disable ladder check.")
         ("ladder_defense", po::value<int>()->default_value(cfg_ladder_defense),
                       "Ladder defense check minimum depth.")
         ("ladder_attack", po::value<int>()->default_value(cfg_ladder_attack),
                       "Ladder attack check minimum depth.")
         ("ladder_depth", po::value<int>()->default_value(cfg_ladder_depth),
                       "Ladder check maximum depth.")
-        ("select_visits", po::value<int>()->default_value(cfg_select_visits),
-                      "Minimum visits rate when select move.")
-        ("select_policy", po::value<int>()->default_value(cfg_select_policy),
-                      "Minimum policy rate when select move.")
-        ("vis_rate", po::value<int>()->default_value(cfg_vis_rate),
-                      "Rate of visits when select move.")
-        ("playouts_rate", po::value<int>()->default_value(cfg_playouts_rate),
-                      "First playout rate.")
-        ("additional_playouts", po::value<int>()->default_value(cfg_additional_playouts),
-                      "Number of additional playouts.")
-        ("win_divergence", po::value<float>(),
-                      "Deviation rate of winning percentage at additional playout determination.")
         ;
 #ifdef USE_OPENCL
     po::options_description gpu_desc("OpenCL device options");
@@ -512,8 +496,8 @@ static void parse_commandline(int argc, char *argv[]) {
     // the best if we have introduced noise there exactly to explore more.
     cfg_fpu_root_reduction = cfg_noise ? 0.0f : cfg_fpu_reduction;
 
-    if (vm.count("ladder_check")) {
-        cfg_ladder_check = vm["ladder_check"].as<int>();
+    if (vm.count("no_ladder_check")) {
+        cfg_ladder_check = false;
     }
 
     if (vm.count("ladder_defense")) {
@@ -526,30 +510,6 @@ static void parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("ladder_depth")) {
         cfg_ladder_depth = vm["ladder_depth"].as<int>();
-    }
-
-    if (vm.count("select_visits")) {
-        cfg_select_visits = vm["select_visits"].as<int>();
-    }
-
-    if (vm.count("select_policy")) {
-        cfg_select_policy = vm["select_policy"].as<int>();
-    }
-
-    if (vm.count("vis_rate")) {
-        cfg_vis_rate = vm["vis_rate"].as<int>();
-    }
-
-    if (vm.count("playouts_rate")) {
-        cfg_playouts_rate = vm["playouts_rate"].as<int>();
-    }
-
-    if (vm.count("additional_playouts")) {
-        cfg_additional_playouts = vm["additional_playouts"].as<int>();
-    }
-
-    if (vm.count("win_divergence")) {
-        cfg_win_divergence = vm["win_divergence"].as<float>();
     }
 
     auto out = std::stringstream{};

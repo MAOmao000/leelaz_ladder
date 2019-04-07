@@ -54,21 +54,12 @@ public:
     UCTNode() = delete;
     ~UCTNode() = default;
 
-/*
     bool create_children(Network & network,
                          std::atomic<int>& nodecount,
                          GameState& state, float& eval,
-                         float min_psa_ratio = 0.0f);
-
-*/
-    bool create_children(Network & network,
-                         std::atomic<int>& nodecount,
-                         GameState& state, float& eval,
-                         int mycolor,
                          float min_psa_ratio = 0.0f);
 
     const std::vector<UCTNodePointer>& get_children() const;
-    void sort_children(int color);
     void sort_children(int color, float lcb_min_visits);
     UCTNode& get_best_root_child(int color);
     UCTNode* uct_select_child(int color, bool is_root);

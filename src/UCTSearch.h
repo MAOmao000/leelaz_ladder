@@ -147,9 +147,6 @@ private:
     int m_maxvisits;
     std::string m_think_output;
 
-/* add member value(m_last_win) */
-    float m_last_win{0.0f};
-
     std::list<Utils::ThreadGroup> m_delete_futures;
 
     Network & m_network;
