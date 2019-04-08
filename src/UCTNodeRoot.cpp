@@ -212,8 +212,7 @@ void UCTNode::prepare_root_node(Network & network, int color,
     float root_eval;
     const auto had_children = has_children();
     if (expandable()) {
-//        create_children(network, nodes, root_state, root_eval);
-        create_children(network, nodes, root_state, root_eval, color);
+        create_children(network, nodes, root_state, root_eval);
     }
     if (had_children) {
         root_eval = get_net_eval(color);
@@ -234,20 +233,22 @@ void UCTNode::prepare_root_node(Network & network, int color,
     kill_superkos(root_state);
 
     char ladder[BOARD_MAX] = {0};
-    game_info_t *game = AllocateGame();
-    InitializeBoard(game);
-    for (int row = 0; row < 19; ++row) {
-        for (int col = 0; col < 19; ++col) {
-            auto vertex = root_state.board.get_vertex(col, row);
-            auto stone = root_state.board.get_state(vertex);
-            if (stone < 2)
-            {
-                PutStone(game, POS(col + BOARD_START, row + BOARD_START), stone ? S_WHITE : S_BLACK);
+    if ((cfg_ladder_defense || cfg_ladder_attack) && cfg_ladder_check) {
+        game_info_t *game = AllocateGame();
+        InitializeBoard(game);
+        for (int row = 0; row < 19; ++row) {
+            for (int col = 0; col < 19; ++col) {
+                auto vertex = root_state.board.get_vertex(col, row);
+                auto stone = root_state.board.get_state(vertex);
+                if (stone < 2)
+                {
+                    PutStone(game, POS(col + BOARD_START, row + BOARD_START), stone ? S_WHITE : S_BLACK);
+                }
             }
         }
+        LadderExtension(game, root_state.board.black_to_move() ? S_BLACK : S_WHITE, ladder);
+        FreeGame(game);
     }
-    LadderExtension(game, root_state.board.black_to_move() ? S_BLACK : S_WHITE, ladder);
-    FreeGame(game);
     for (auto& child : m_children) {
         auto move = child->get_move();
         if (move != FastBoard::PASS) {

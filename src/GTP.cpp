@@ -553,6 +553,9 @@ void GTP::execute(GameState & game, const std::string& xinput) {
     } else if (command.find("list_commands") == 0) {
         std::string outtmp(s_commands[0]);
         for (int i = 1; s_commands[i].size() > 0; i++) {
+/* Stop Sabaki's analysis */
+//if (cfg_quiet && s_commands[i] == "lz-genmove_analyze") continue;
+/**/
             outtmp = outtmp + "\n" + s_commands[i];
         }
         gtp_printf(id, outtmp.c_str());
@@ -680,7 +683,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             // now start pondering
             if (!game.has_resigned()) {
                 // Outputs winrate and pvs through gtp for lz-genmove_analyze
-                search->ponder(who); // <- search->ponder();
+                search->ponder();
             }
         }
         if (analysis_output) {
@@ -707,7 +710,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             cfg_analyze_tags = tags;
             // Outputs winrate and pvs through gtp
             game.set_to_move(tags.who());
-            search->ponder(tags.who()); // <- search->ponder();
+            search->ponder();
         }
         cfg_analyze_tags = {};
         // Terminate multi-line response
@@ -742,7 +745,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             if (cfg_allow_pondering) {
                 // now start pondering
                 if (!game.has_resigned()) {
-                    search->ponder(who); // <- search->ponder();
+                    search->ponder();
                 }
             }
         } else {
@@ -825,7 +828,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 // KGS sends this after our move
                 // now start pondering
                 if (!game.has_resigned()) {
-                    search->ponder(icolor); // <- search->ponder();
+                    search->ponder();
                 }
             }
         } else {

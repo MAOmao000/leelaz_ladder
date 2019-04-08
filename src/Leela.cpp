@@ -181,7 +181,7 @@ static void parse_commandline(int argc, char *argv[]) {
 #ifndef USE_CPU_ONLY
         ("cpu-only", "Use CPU-only implementation and do not use OpenCL device(s).")
 #endif
-        ("ladder_check", "Disable ladder check.")
+        ("no_ladder_check", "Disable ladder check.")
         ("ladder_defense", po::value<int>()->default_value(cfg_ladder_defense),
                       "Ladder defense check minimum depth.")
         ("ladder_attack", po::value<int>()->default_value(cfg_ladder_attack),

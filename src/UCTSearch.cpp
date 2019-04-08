@@ -108,7 +108,7 @@ private:
 
 UCTSearch::UCTSearch(GameState& g, Network& network)
     : m_rootstate(g), m_network(network) {
-    myprintf("Program Version %s%s\n", PROGRAM_VERSION, ".2");
+    myprintf("Program Version %s%s\n", PROGRAM_VERSION, ".3");
     set_playout_limit(cfg_max_playouts);
     set_visit_limit(cfg_max_visits);
 
@@ -230,8 +230,7 @@ float UCTSearch::get_min_psa_ratio() const {
 }
 
 SearchResult UCTSearch::play_simulation(GameState & currstate,
-                                        UCTNode* const node, int mycolor) {
-//                                        UCTNode* const node) {
+                                        UCTNode* const node) {
     const auto color = currstate.get_to_move();
     auto result = SearchResult{};
 
@@ -261,8 +260,7 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
         if (move != FastBoard::PASS && currstate.superko()) {
             next->invalidate();
         } else {
-//            result = play_simulation(currstate, next);
-            result = play_simulation(currstate, next, mycolor);
+            result = play_simulation(currstate, next);
         }
     }
 
@@ -762,11 +760,9 @@ bool UCTSearch::stop_thinking(int elapsed_centis, int time_for_move) const {
 }
 
 void UCTWorker::operator()() {
-    int color = m_rootstate.board.get_to_move();
     do {
         auto currstate = std::make_unique<GameState>(m_rootstate);
-//        auto result = m_search->play_simulation(*currstate, m_root);
-        auto result = m_search->play_simulation(*currstate, m_root, color);
+        auto result = m_search->play_simulation(*currstate, m_root);
         if (result.valid()) {
             m_search->increment_playouts();
         }
@@ -816,8 +812,7 @@ int UCTSearch::think(int color, passflag_t passflag) {
     do {
         auto currstate = std::make_unique<GameState>(m_rootstate);
 
-//        auto result = play_simulation(*currstate, m_root.get());
-        auto result = play_simulation(*currstate, m_root.get(), color);
+        auto result = play_simulation(*currstate, m_root.get());
         if (result.valid()) {
             increment_playouts();
         }
@@ -904,8 +899,7 @@ std::string UCTSearch::explain_last_think() const {
     return m_think_output;
 }
 
-//void UCTSearch::ponder() {
-void UCTSearch::ponder(int color) {
+void UCTSearch::ponder() {
     auto disable_reuse = cfg_analyze_tags.has_move_restrictions();
     if (disable_reuse) {
         m_last_rootstate.reset(nullptr);
@@ -926,8 +920,7 @@ void UCTSearch::ponder(int color) {
     auto last_output = 0;
     do {
         auto currstate = std::make_unique<GameState>(m_rootstate);
-//        auto result = play_simulation(*currstate, m_root.get());
-        auto result = play_simulation(*currstate, m_root.get(), color);
+        auto result = play_simulation(*currstate, m_root.get());
         if (result.valid()) {
             increment_playouts();
         }

@@ -111,13 +111,11 @@ public:
     int think(int color, passflag_t passflag = NORMAL);
     void set_playout_limit(int playouts);
     void set_visit_limit(int visits);
-//    void ponder();
-    void ponder(int color);
+    void ponder();
     bool is_running() const;
     void increment_playouts();
     std::string explain_last_think() const;
-//    SearchResult play_simulation(GameState& currstate, UCTNode* const node);
-    SearchResult play_simulation(GameState& currstate, UCTNode* const node, int mycolor);
+    SearchResult play_simulation(GameState& currstate, UCTNode* const node);
 
 private:
     float get_min_psa_ratio() const;
