@@ -61,6 +61,7 @@ using namespace Utils;
 
 #ifndef _WIN32
     static void signal_handler(int sig, siginfo_t* sig_info, void* sig_data) {
+    (void) sig_data;
     if( sig == SIGSEGV ) {
         fprintf(stderr, "SEGV: %p\n", sig_info->si_addr );
         fflush(stderr);
@@ -181,6 +182,8 @@ static void parse_commandline(int argc, char *argv[]) {
 #ifndef USE_CPU_ONLY
         ("cpu-only", "Use CPU-only implementation and do not use OpenCL device(s).")
 #endif
+        ("add_analyze_interval", po::value<int>()->default_value(cfg_add_interval),
+                      "Additional analyze interval(centi seconds).")
         ("no_ladder_check", "Disable ladder check.")
         ("ladder_defense", po::value<int>()->default_value(cfg_ladder_defense),
                       "Ladder defense check minimum depth.")
@@ -495,6 +498,10 @@ static void parse_commandline(int argc, char *argv[]) {
     // Do not lower the expected eval for root moves that are likely not
     // the best if we have introduced noise there exactly to explore more.
     cfg_fpu_root_reduction = cfg_noise ? 0.0f : cfg_fpu_reduction;
+
+    if (vm.count("add_analyze_interval")) {
+        cfg_add_interval = vm["add_analyze_interval"].as<int>();
+    }
 
     if (vm.count("no_ladder_check")) {
         cfg_ladder_check = false;

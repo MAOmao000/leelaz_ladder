@@ -98,6 +98,7 @@ bool cfg_quiet;
 std::string cfg_options_str;
 bool cfg_benchmark;
 bool cfg_cpu_only;
+int cfg_add_interval;
 bool cfg_ladder_check;
 int cfg_ladder_defense;
 int cfg_ladder_attack;
@@ -236,6 +237,10 @@ AnalyzeTags::AnalyzeTags(std::istringstream& cmdstream, const GameState& game) {
             if (cmdstream.fail()) {
                 return;
             }
+            /* For low spec PC */
+            if (cfg_add_interval > 0) {
+                m_interval_centis += cfg_add_interval;
+            }
         } else if (tag == "minmoves") {
             cmdstream >> m_min_moves;
             if (cmdstream.fail()) {
@@ -362,6 +367,7 @@ void GTP::setup_default_parameters() {
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     cfg_benchmark = false;
+    cfg_add_interval = 0;
     cfg_ladder_check = true;
     cfg_ladder_defense = 3;
     cfg_ladder_attack = 10;
@@ -553,9 +559,8 @@ void GTP::execute(GameState & game, const std::string& xinput) {
     } else if (command.find("list_commands") == 0) {
         std::string outtmp(s_commands[0]);
         for (int i = 1; s_commands[i].size() > 0; i++) {
-/* Stop Sabaki's analysis */
-//if (cfg_quiet && s_commands[i] == "lz-genmove_analyze") continue;
-/**/
+            /* Stop Sabaki's analysis */
+            if (cfg_add_interval < 0 && s_commands[i] == "lz-genmove_analyze") continue;
             outtmp = outtmp + "\n" + s_commands[i];
         }
         gtp_printf(id, outtmp.c_str());
