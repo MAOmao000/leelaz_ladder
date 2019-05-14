@@ -3,7 +3,7 @@ THE_OS := $(shell uname -s)
 default:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) CC=gcc CXX=g++ \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -g -Ofast -ffast-math -flto -fopenmp -mtune=native -march=native -mfpmath=both -std=c++14 -DNDEBUG -DUSE_BLAS' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -g -Ofast -ffast-math -flto -fopenmp -mtune=native -march=native -std=c++14 -DNDEBUG -DUSE_BLAS' \
 		LDFLAGS='$(LDFLAGS) -g -flto -fopenmp' \
 		leelaz
 

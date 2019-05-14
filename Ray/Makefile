@@ -2,8 +2,8 @@ THE_OS := $(shell uname -s)
 
 default:
 	@echo "Detected OS: ${THE_OS}"
-	$(MAKE) CC=gcc CXX=g++ AR=ar \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -O3 -ffast-math -flto -march=native -mfpmath=sse -msse2 -std=c++14 -DNDEBUG -Wl,--stack,104857600'  \
+	$(MAKE) CC=gcc CXX=g++ AR=gcc-ar \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -O3 -ffast-math -flto -march=native -std=c++14 -DNDEBUG'  \
 		LDFLAGS='$(LDFLAGS) -flto' \
 		libRay.a
 
