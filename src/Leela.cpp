@@ -147,6 +147,9 @@ static void calculate_thread_count_gpu(boost::program_options::variables_map & v
 }
 #endif
 
+float black_value = 1.0f;
+int act_mode = 0;
+
 static void parse_commandline(int argc, char *argv[]) {
     namespace po = boost::program_options;
     // Declare the supported options.
@@ -182,6 +185,8 @@ static void parse_commandline(int argc, char *argv[]) {
 #ifndef USE_CPU_ONLY
         ("cpu-only", "Use CPU-only implementation and do not use OpenCL device(s).")
 #endif
+        ("black-value", po::value<float>()->default_value(1.0f), "Specify the value of black stones (default is 1).")
+        ("activation", po::value<std::string>()->default_value("default"), "Specify an activation function to use(default, sqrt, linear, linear2).")
         ("add_analyze_interval", po::value<int>()->default_value(cfg_add_interval),
                       "Additional analyze interval(centi seconds).")
         ("no_ladder_check", "Disable ladder check.")
@@ -231,6 +236,7 @@ static void parse_commandline(int argc, char *argv[]) {
         ("softmax_temp", po::value<float>())
         ("fpu_reduction", po::value<float>())
         ("ci_alpha", po::value<float>())
+        ("lcb_min_visit_ratio", po::value<float>())
         ;
 #endif
     // These won't be shown, we use them to catch incorrect usage of the
@@ -313,6 +319,9 @@ static void parse_commandline(int argc, char *argv[]) {
     }
     if (vm.count("ci_alpha")) {
         cfg_ci_alpha = vm["ci_alpha"].as<float>();
+    }
+    if (vm.count("lcb_min_visit_ratio")) {
+        cfg_lcb_min_visit_ratio = vm["lcb_min_visit_ratio"].as<float>();
     }
 #endif
 
@@ -492,6 +501,30 @@ static void parse_commandline(int argc, char *argv[]) {
 
         if (!vm.count("playouts") && !vm.count("visits")) {
             cfg_max_visits = 3200; // Default to self-play and match values.
+        }
+
+    }
+
+    if (vm.count("black-value"))
+    {
+        black_value = vm["black-value"].as<float>();
+    }
+
+    if (vm.count("activation"))
+    {
+        std::string function = vm["activation"].as<std::string>();
+
+        if (function == "sqrt")
+        {
+            act_mode = 1;
+        }
+        else if (function == "linear")
+        {
+            act_mode = 2;
+        }
+        else if (function == "linear2")
+        {
+            act_mode = 3;
         }
     }
 

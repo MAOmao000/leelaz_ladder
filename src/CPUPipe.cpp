@@ -36,6 +36,9 @@
 #include <mkl.h>
 #endif
 #ifdef USE_OPENBLAS
+#ifdef WIN32
+#include <intrin.h>
+#endif
 #include <cblas.h>
 #endif
 #ifndef USE_BLAS
@@ -54,10 +57,18 @@ using EigenMatrixMap =
 template <typename T>
 using ConstEigenMatrixMap =
     Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>;
+template <typename T>
+using EigenVectorMap =
+    Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>>;
+template <typename T>
+using ConstEigenVectorMap =
+    Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>>;
 #endif
 
-void CPUPipe::initialize(int channels) {
+//void CPUPipe::initialize(int channels) {
+void CPUPipe::initialize(int channels, const NetworkType net_type) {
     m_input_channels = channels;
+    m_net_type = net_type;
 }
 
 void CPUPipe::winograd_transform_in(const std::vector<float>& in,
@@ -352,6 +363,56 @@ void convolve(const size_t outputs,
 }
 
 template <size_t spatial_size>
+void avg_pool(const size_t channels,
+    const std::vector<float>& input,
+    std::vector<float>& output) {
+    for (auto c = size_t{ 0 }; c < channels; ++c) {
+        float val = 0;
+
+        for (auto b = size_t{ 0 }; b < spatial_size; ++b) {
+            val += input[(c * spatial_size) + b];
+        }
+
+        output[c] = val / spatial_size;
+    }
+}
+
+void relu(const size_t spatial_size,
+    std::vector<float>& data) {
+    for (auto b = size_t{ 0 }; b < spatial_size; ++b) {
+        data[b] = (data[b] > 0.f) ? data[b] : 0;
+    }
+}
+
+void innerproduct(const size_t inputs,
+    const size_t outputs,
+    const std::vector<float>& input,
+    const std::vector<float>& weights,
+    const std::vector<float>& biases,
+    std::vector<float>& output) {
+
+#ifdef USE_BLAS
+    cblas_sgemv(CblasRowMajor, CblasNoTrans,
+        // M     K
+        outputs, inputs,
+        1.0f, &weights[0], inputs,
+        &input[0], 1,
+        0.0f, &output[0], 1);
+#else
+    EigenVectorMap<float> y(output.data(), outputs);
+    y.noalias() =
+        ConstEigenMatrixMap<float>(weights.data(),
+            inputs,
+            outputs).transpose()
+        * ConstEigenVectorMap<float>(input.data(), inputs);
+#endif
+
+    for (auto o = size_t{ 0 }; o < outputs; ++o) {
+        output[o] += biases[o];
+    }
+}
+
+template <size_t spatial_size>
 void batchnorm(const size_t channels,
                std::vector<float>& data,
                const float* const means,
@@ -379,9 +440,27 @@ void batchnorm(const size_t channels,
     }
 }
 
+template <size_t spatial_size>
+void batchnorm_no_relu(const size_t channels,
+    std::vector<float>& data,
+    const float* const means,
+    const float* const stddevs) {
+    for (auto c = size_t{ 0 }; c < channels; ++c) {
+        const auto mean = means[c];
+        const auto scale_stddev = stddevs[c];
+        const auto arr = &data[c * spatial_size];
+
+        for (auto b = size_t{ 0 }; b < spatial_size; b++) {
+            arr[b] = scale_stddev * (arr[b] - mean);
+        }
+    }
+}
+
 void CPUPipe::forward(const std::vector<float>& input,
                       std::vector<float>& output_pol,
                       std::vector<float>& output_val) {
+    const auto lambda_Sig = [](const auto val) { return 1.f / (1.f + std::exp(-val)); };
+
     // Input convolution
     constexpr auto P = WINOGRAD_P;
     // Calculate output channels
@@ -392,6 +471,9 @@ void CPUPipe::forward(const std::vector<float>& input,
     const auto input_channels = std::max(static_cast<size_t>(output_channels),
                                          static_cast<size_t>(Network::INPUT_CHANNELS));
     auto conv_out = std::vector<float>(output_channels * NUM_INTERSECTIONS);
+    auto se_pool = std::vector<float>(output_channels);
+    auto se_fc1 = std::vector<float>(output_channels / 2);
+    auto se_fc2 = std::vector<float>(output_channels * 2);
 
     auto V = std::vector<float>(WINOGRAD_TILE * input_channels * P);
     auto M = std::vector<float>(WINOGRAD_TILE * output_channels * P);
@@ -417,10 +499,49 @@ void CPUPipe::forward(const std::vector<float>& input,
         std::swap(conv_out, conv_in);
         winograd_convolve3(output_channels, conv_in,
                            m_weights->m_conv_weights[i + 1], V, M, conv_out);
+/*
         batchnorm<NUM_INTERSECTIONS>(output_channels, conv_out,
                                      m_weights->m_batchnorm_means[i + 1].data(),
                                      m_weights->m_batchnorm_stddevs[i + 1].data(),
                                      res.data());
+*/
+        if (m_net_type == LEELA_ZERO)
+        {
+            batchnorm<NUM_INTERSECTIONS>(output_channels, conv_out,
+                m_weights->m_batchnorm_means[i + 1].data(),
+                m_weights->m_batchnorm_stddevs[i + 1].data(),
+                res.data());
+        }
+        else if (m_net_type == MINIGO_SE)
+        {
+            batchnorm_no_relu<NUM_INTERSECTIONS>(output_channels, conv_out,
+                m_weights->m_batchnorm_means[i + 1].data(),
+                m_weights->m_batchnorm_stddevs[i + 1].data());
+
+            avg_pool<NUM_INTERSECTIONS>(output_channels, conv_out, se_pool);
+            innerproduct(output_channels, output_channels / 2, se_pool,
+                m_weights->m_se_weights[i - 1],
+                m_weights->m_se_biases[i - 1],
+                se_fc1);
+            relu(output_channels / 2, se_fc1);
+
+            innerproduct(output_channels / 2, output_channels * 2, se_fc1,
+                m_weights->m_se_weights[i],
+                m_weights->m_se_biases[i],
+                se_fc2);
+
+            for (auto c = size_t{ 0 }; c < output_channels; ++c) {
+                const auto w = lambda_Sig(se_fc2[c]);
+
+                for (auto b = size_t{ 0 }; b < NUM_INTERSECTIONS; ++b) {
+                    const auto idx = (c * NUM_INTERSECTIONS) + b;
+
+                    conv_out[idx] *= w;
+                    conv_out[idx] += se_fc2[output_channels + c] + res[idx];
+                    conv_out[idx] = (conv_out[idx] > 0) ? conv_out[idx] : 0;
+                }
+            }
+        }
     }
     convolve<1>(Network::OUTPUTS_POLICY, conv_out, m_conv_pol_w, m_conv_pol_b, output_pol);
     convolve<1>(Network::OUTPUTS_VALUE, conv_out, m_conv_val_w, m_conv_val_b, output_val);

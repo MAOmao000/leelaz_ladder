@@ -110,13 +110,17 @@ OpenCLScheduler<net_t>::OpenCLScheduler() {
 }
 
 template <typename net_t>
-void OpenCLScheduler<net_t>::initialize(const int channels) {
+//void OpenCLScheduler<net_t>::initialize(const int channels) {
+void OpenCLScheduler<net_t>::initialize(const int channels, const NetworkType net_type) {
+    m_net_type = net_type;
+
     // Launch the worker threads.  Minimum 1 worker per GPU, but use enough threads
     // so that we can at least concurrently schedule something to the GPU.
     auto num_worker_threads = cfg_num_threads / cfg_batch_size / (m_opencl.size() + 1) + 1;
     auto gnum = 0;
     for (auto & opencl : m_opencl) {
-        opencl->initialize(channels, cfg_batch_size);
+//        opencl->initialize(channels, cfg_batch_size);
+        opencl->initialize(channels, cfg_batch_size, net_type);
 
         for (auto i = unsigned{0}; i < num_worker_threads; i++) {
             auto t = std::thread(&OpenCLScheduler<net_t>::batch_worker, this, gnum);
@@ -218,6 +222,47 @@ void OpenCLScheduler<net_t>::push_residual(unsigned int filter_size,
 }
 
 template <typename net_t>
+void OpenCLScheduler<net_t>::push_residual_se(unsigned int filter_size,
+    unsigned int channels,
+    unsigned int outputs,
+    const std::vector<float>& weights_1,
+    const std::vector<float>& means_1,
+    const std::vector<float>& variances_1,
+    const std::vector<float>& weights_2,
+    const std::vector<float>& means_2,
+    const std::vector<float>& variances_2,
+    const std::vector<float>& fc1_w,
+    const std::vector<float>& fc1_b,
+    const std::vector<float>& fc2_w,
+    const std::vector<float>& fc2_b) {
+    for (const auto& opencl_net : m_networks) {
+        const auto tuners = opencl_net->getOpenCL().get_sgemm_tuners();
+
+        const auto mwg = tuners[0];
+        const auto vwm = tuners[3];
+
+        const auto m_ceil = ceilMultiple(ceilMultiple(outputs, mwg), vwm);
+        const auto Upad1 = zeropad_U<net_t>(weights_1,
+            outputs, outputs,
+            m_ceil, m_ceil);
+        const auto Upad2 = zeropad_U<net_t>(weights_2,
+            outputs, outputs,
+            m_ceil, m_ceil);
+        opencl_net->push_residual_se(filter_size, channels, outputs,
+            Upad1,
+            from_float(means_1),
+            from_float(variances_1),
+            Upad2,
+            from_float(means_2),
+            from_float(variances_2),
+            from_float(fc1_w),
+            from_float(fc1_b),
+            from_float(fc2_w),
+            from_float(fc2_b));
+    }
+}
+
+template <typename net_t>
 void OpenCLScheduler<net_t>::push_convolve(unsigned int filter_size,
                                            unsigned int channels,
                                            unsigned int outputs,
@@ -246,6 +291,7 @@ void OpenCLScheduler<net_t>::push_weights(
 
     // residual blocks : except the first entry,
     // the second ~ last entry is all on residual topwer
+/*
     for (auto i = size_t{0}; i < weights->m_conv_weights.size()/2; i++) {
         push_residual(filter_size, outputs, outputs,
                       weights->m_conv_weights[weight_index],
@@ -255,6 +301,41 @@ void OpenCLScheduler<net_t>::push_weights(
                       weights->m_batchnorm_means[weight_index + 1],
                       weights->m_batchnorm_stddevs[weight_index + 1]);
         weight_index += 2;
+    }
+*/
+    if (m_net_type == LEELA_ZERO)
+    {
+        // residual blocks : except the first entry,
+        // the second ~ last entry is all on residual topwer
+        for (auto i = size_t{ 0 }; i < weights->m_conv_weights.size() / 2; i++) {
+            push_residual(filter_size, outputs, outputs,
+                weights->m_conv_weights[weight_index],
+                weights->m_batchnorm_means[weight_index],
+                weights->m_batchnorm_stddevs[weight_index],
+                weights->m_conv_weights[weight_index + 1],
+                weights->m_batchnorm_means[weight_index + 1],
+                weights->m_batchnorm_stddevs[weight_index + 1]);
+            weight_index += 2;
+        }
+    }
+    else if (m_net_type == MINIGO_SE)
+    {
+        // residual blocks : except the first entry,
+        // the second ~ last entry is all on residual topwer
+        for (auto i = size_t{ 0 }; i < weights->m_conv_weights.size() / 2; i++) {
+            push_residual_se(filter_size, outputs, outputs,
+                weights->m_conv_weights[weight_index],
+                weights->m_batchnorm_means[weight_index],
+                weights->m_batchnorm_stddevs[weight_index],
+                weights->m_conv_weights[weight_index + 1],
+                weights->m_batchnorm_means[weight_index + 1],
+                weights->m_batchnorm_stddevs[weight_index + 1],
+                weights->m_se_weights[weight_index - 1],
+                weights->m_se_biases[weight_index - 1],
+                weights->m_se_weights[weight_index],
+                weights->m_se_biases[weight_index]);
+            weight_index += 2;
+        }
     }
 
     // Output head convolutions

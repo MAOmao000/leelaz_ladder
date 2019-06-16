@@ -38,7 +38,8 @@
 
 class CPUPipe : public ForwardPipe {
 public:
-    virtual void initialize(const int channels);
+//    virtual void initialize(const int channels);
+    virtual void initialize(const int channels, const NetworkType net_type);
     virtual void forward(const std::vector<float>& input,
                          std::vector<float>& output_pol,
                          std::vector<float>& output_val);
@@ -78,5 +79,7 @@ private:
     std::vector<float> m_conv_val_w;
     std::vector<float> m_conv_pol_b;
     std::vector<float> m_conv_val_b;
+
+    NetworkType m_net_type;
 };
 #endif

@@ -51,6 +51,9 @@
 #include <mkl.h>
 #endif
 #ifdef USE_OPENBLAS
+#ifdef WIN32
+#include <intrin.h>
+#endif
 #include <cblas.h>
 #endif
 #include "zlib.h"
@@ -253,12 +256,28 @@ std::pair<int, int> Network::load_v1_network(std::istream& wtfile) {
     // 1 format id, 1 input layer (4 x weights), 14 ending weights,
     // the rest are residuals, every residual has 8 x weight lines
     auto residual_blocks = linecount - (1 + 4 + 14);
+/*
     if (residual_blocks % 8 != 0) {
         myprintf("\nInconsistent number of weights in the file.\n");
         return {0, 0};
     }
     residual_blocks /= 8;
     myprintf("%d blocks.\n", residual_blocks);
+*/
+    if (residual_blocks % 8 == 0) {
+        m_net_type = LEELA_ZERO;
+        residual_blocks /= 8;
+        myprintf("%d blocks (Leela Zero).\n", residual_blocks);
+    }
+    else if (residual_blocks % 12 == 0) {
+        m_net_type = MINIGO_SE;
+        residual_blocks /= 12;
+        myprintf("%d blocks (MiniGo SE).\n", residual_blocks);
+    }
+    else {
+        myprintf("\nInconsistent number of weights in the file.\n");
+        return { 0, 0 };
+    }
 
     // Re-read file and process
     wtfile.clear();
@@ -267,68 +286,159 @@ std::pair<int, int> Network::load_v1_network(std::istream& wtfile) {
     // Get the file format id out of the way
     std::getline(wtfile, line);
 
-    const auto plain_conv_layers = 1 + (residual_blocks * 2);
-    const auto plain_conv_wts = plain_conv_layers * 4;
-    linecount = 0;
-    while (std::getline(wtfile, line)) {
-        std::vector<float> weights;
-        auto it_line = line.cbegin();
-        const auto ok = phrase_parse(it_line, line.cend(),
-                                     *x3::float_, x3::space, weights);
-        if (!ok || it_line != line.cend()) {
-            myprintf("\nFailed to parse weight file. Error on line %d.\n",
-                    linecount + 2); //+1 from version line, +1 from 0-indexing
-            return {0, 0};
-        }
-        if (linecount < plain_conv_wts) {
-            if (linecount % 4 == 0) {
-                m_fwd_weights->m_conv_weights.emplace_back(weights);
-            } else if (linecount % 4 == 1) {
-                // Redundant in our model, but they encode the
-                // number of outputs so we have to read them in.
-                m_fwd_weights->m_conv_biases.emplace_back(weights);
-            } else if (linecount % 4 == 2) {
-                m_fwd_weights->m_batchnorm_means.emplace_back(weights);
-            } else if (linecount % 4 == 3) {
-                process_bn_var(weights);
-                m_fwd_weights->m_batchnorm_stddevs.emplace_back(weights);
+    // ----------------- Leela Zero -------------------
+    if (m_net_type == LEELA_ZERO)
+    {
+        const auto plain_conv_layers = 1 + (residual_blocks * 2);
+        const auto plain_conv_wts = plain_conv_layers * 4;
+        linecount = 0;
+        while (std::getline(wtfile, line)) {
+            std::vector<float> weights;
+            auto it_line = line.cbegin();
+            const auto ok = phrase_parse(it_line, line.cend(),
+                                         *x3::float_, x3::space, weights);
+            if (!ok || it_line != line.cend()) {
+                myprintf("\nFailed to parse weight file. Error on line %d.\n",
+                        linecount + 2); //+1 from version line, +1 from 0-indexing
+                return {0, 0};
             }
-        } else {
-            switch (linecount - plain_conv_wts) {
+            if (linecount < plain_conv_wts) {
+                if (linecount % 4 == 0) {
+                    m_fwd_weights->m_conv_weights.emplace_back(weights);
+                } else if (linecount % 4 == 1) {
+                    // Redundant in our model, but they encode the
+                    // number of outputs so we have to read them in.
+                    m_fwd_weights->m_conv_biases.emplace_back(weights);
+                } else if (linecount % 4 == 2) {
+                    m_fwd_weights->m_batchnorm_means.emplace_back(weights);
+                } else if (linecount % 4 == 3) {
+                    process_bn_var(weights);
+                    m_fwd_weights->m_batchnorm_stddevs.emplace_back(weights);
+                }
+            } else {
+                switch (linecount - plain_conv_wts) {
+                    case  0: m_fwd_weights->m_conv_pol_w = std::move(weights); break;
+                    case  1: m_fwd_weights->m_conv_pol_b = std::move(weights); break;
+                    case  2: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_bn_pol_w1)); break;
+                    case  3: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_bn_pol_w2)); break;
+                    case  4: if (weights.size() != OUTPUTS_POLICY
+                                                   * NUM_INTERSECTIONS
+                                                   * POTENTIAL_MOVES) {
+                                 myprintf("The weights file is not for %dx%d boards.\n",
+                                          BOARD_SIZE, BOARD_SIZE);
+                                 return {0, 0};
+                             }
+                             std::copy(cbegin(weights), cend(weights),
+                                       begin(m_ip_pol_w)); break;
+                    case  5: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_ip_pol_b)); break;
+                    case  6: m_fwd_weights->m_conv_val_w = std::move(weights); break;
+                    case  7: m_fwd_weights->m_conv_val_b = std::move(weights); break;
+                    case  8: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_bn_val_w1)); break;
+                    case  9: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_bn_val_w2)); break;
+                    case 10: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_ip1_val_w)); break;
+                    case 11: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_ip1_val_b)); break;
+                    case 12: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_ip2_val_w)); break;
+                    case 13: std::copy(cbegin(weights), cend(weights),
+                                       begin(m_ip2_val_b)); break;
+                }
+            }
+            linecount++;
+        }
+    }
+    else if (m_net_type == MINIGO_SE)
+        // ----------------- MiniGo v17 -------------------
+    {
+        const auto res_conv_layers = residual_blocks * 2;
+        const auto plain_conv_wts = 4 + res_conv_layers * 6;
+        linecount = 0;
+        while (std::getline(wtfile, line)) {
+            std::vector<float> weights;
+            auto it_line = line.cbegin();
+            const auto ok = phrase_parse(it_line, line.cend(),
+                *x3::float_, x3::space, weights);
+            if (!ok || it_line != line.cend()) {
+                myprintf("\nFailed to parse weight file. Error on line %d.\n",
+                    linecount + 2); //+1 from version line, +1 from 0-indexing
+                return { 0,0 };
+            }
+            if (linecount < 4) {
+                if (linecount % 4 == 0) {
+                    m_fwd_weights->m_conv_weights.emplace_back(weights);
+                }
+                else if (linecount % 4 == 1) {
+                    // Redundant in our model, but they encode the
+                    // number of outputs so we have to read them in.
+                    m_fwd_weights->m_conv_biases.emplace_back(weights);
+                }
+                else if (linecount % 4 == 2) {
+                    m_fwd_weights->m_batchnorm_means.emplace_back(weights);
+                }
+                else if (linecount % 4 == 3) {
+                    process_bn_var(weights);
+                    m_fwd_weights->m_batchnorm_stddevs.emplace_back(weights);
+                }
+            }
+            else if (linecount < plain_conv_wts) {
+                const auto tmp = linecount - 4;
+
+                if (tmp % 6 == 0) {
+                    m_fwd_weights->m_conv_weights.emplace_back(weights);
+                }
+                else if (tmp % 6 == 1) {
+                    m_fwd_weights->m_conv_biases.emplace_back(weights);
+                }
+                else if (tmp % 6 == 2) {
+                    m_fwd_weights->m_batchnorm_means.emplace_back(weights);
+                }
+                else if (tmp % 6 == 3) {
+                    process_bn_var(weights);
+                    m_fwd_weights->m_batchnorm_stddevs.emplace_back(weights);
+                }
+                else if (tmp % 6 == 4) {
+                    m_fwd_weights->m_se_weights.emplace_back(weights);
+                }
+                else if (tmp % 6 == 5) {
+                    m_fwd_weights->m_se_biases.emplace_back(weights);
+                }
+            }
+            else {
+                switch (linecount - plain_conv_wts) {
                 case  0: m_fwd_weights->m_conv_pol_w = std::move(weights); break;
                 case  1: m_fwd_weights->m_conv_pol_b = std::move(weights); break;
                 case  2: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_bn_pol_w1)); break;
+                    begin(m_bn_pol_w1)); break;
                 case  3: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_bn_pol_w2)); break;
-                case  4: if (weights.size() != OUTPUTS_POLICY
-                                               * NUM_INTERSECTIONS
-                                               * POTENTIAL_MOVES) {
-                             myprintf("The weights file is not for %dx%d boards.\n",
-                                      BOARD_SIZE, BOARD_SIZE);
-                             return {0, 0};
-                         }
-                         std::copy(cbegin(weights), cend(weights),
-                                   begin(m_ip_pol_w)); break;
+                    begin(m_bn_pol_w2)); break;
+                case  4: std::copy(cbegin(weights), cend(weights),
+                    begin(m_ip_pol_w)); break;
                 case  5: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_ip_pol_b)); break;
+                    begin(m_ip_pol_b)); break;
                 case  6: m_fwd_weights->m_conv_val_w = std::move(weights); break;
                 case  7: m_fwd_weights->m_conv_val_b = std::move(weights); break;
                 case  8: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_bn_val_w1)); break;
+                    begin(m_bn_val_w1)); break;
                 case  9: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_bn_val_w2)); break;
+                    begin(m_bn_val_w2)); break;
                 case 10: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_ip1_val_w)); break;
+                    begin(m_ip1_val_w)); break;
                 case 11: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_ip1_val_b)); break;
+                    begin(m_ip1_val_b)); break;
                 case 12: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_ip2_val_w)); break;
+                    begin(m_ip2_val_w)); break;
                 case 13: std::copy(cbegin(weights), cend(weights),
-                                   begin(m_ip2_val_b)); break;
+                    begin(m_ip2_val_b)); break;
+               }
             }
+            linecount++;
         }
-        linecount++;
     }
     process_bn_var(m_bn_pol_w2);
     process_bn_var(m_bn_val_w2);
@@ -389,7 +499,8 @@ std::pair<int, int> Network::load_network_file(const std::string& filename) {
 std::unique_ptr<ForwardPipe>&& Network::init_net(int channels,
     std::unique_ptr<ForwardPipe>&& pipe) {
 
-    pipe->initialize(channels);
+//    pipe->initialize(channels);
+    pipe->initialize(channels, m_net_type);
     pipe->push_weights(WINOGRAD_ALPHA, INPUT_CHANNELS, channels, m_fwd_weights);
 
     return std::move(pipe);
@@ -731,6 +842,34 @@ bool Network::probe_cache(const GameState* const state,
     return false;
 }
 
+float my_tanh(float x)
+{
+    extern int act_mode;
+
+    if (act_mode == 0)
+    {
+        return std::tanh(x);
+    }
+    else if (act_mode == 1)
+    {
+        if (x < 0) return -my_tanh(-x);
+
+        return std::sqrt(x);
+    }
+    else if (act_mode == 2)
+    {
+        if (x < 0) return -my_tanh(-x);
+
+        return (1 / 2.25) * x;
+    }
+    else if (act_mode == 3)
+    {
+        if (x < 0) return -my_tanh(-x);
+
+        return (1 / 3.0) * x;
+    }
+}
+
 Network::Netresult Network::get_output(
     const GameState* const state, const Ensemble ensemble, const int symmetry,
     const bool read_cache, const bool write_cache, const bool force_selfcheck) {
@@ -837,7 +976,9 @@ Network::Netresult Network::get_output_internal(
         innerproduct<VALUE_LAYER, 1, false>(winrate_data, m_ip2_val_w, m_ip2_val_b);
 
     // Map TanH output range [-1..1] to [0..1] range
-    const auto winrate = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
+//    const auto winrate = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
+    const auto winrate = (1.0f + my_tanh(winrate_out[0])) / 2.0f;
+
 
     Netresult result;
 
@@ -909,13 +1050,15 @@ void Network::fill_input_plane_pair(const FullBoard& board,
                                     std::vector<float>::iterator black,
                                     std::vector<float>::iterator white,
                                     const int symmetry) {
+    extern float black_value;
     for (auto idx = 0; idx < NUM_INTERSECTIONS; idx++) {
         const auto sym_idx = symmetry_nn_idx_table[symmetry][idx];
         const auto x = sym_idx % BOARD_SIZE;
         const auto y = sym_idx / BOARD_SIZE;
         const auto color = board.get_state(x, y);
         if (color == FastBoard::BLACK) {
-            black[idx] = float(true);
+//            black[idx] = float(true);
+            black[idx] = black_value;
         } else if (color == FastBoard::WHITE) {
             white[idx] = float(true);
         }
