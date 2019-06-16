@@ -127,6 +127,7 @@ extern bool cfg_ladder_check;
 extern int cfg_ladder_defense;
 extern int cfg_ladder_attack;
 extern int cfg_ladder_depth;
+extern bool cfg_scaling_fpu;
 extern bool cfg_cpu_only;
 extern AnalyzeTags cfg_analyze_tags;
 

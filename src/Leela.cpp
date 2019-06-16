@@ -196,6 +196,7 @@ static void parse_commandline(int argc, char *argv[]) {
                       "Ladder attack check minimum depth.")
         ("ladder_depth", po::value<int>()->default_value(cfg_ladder_depth),
                       "Ladder check maximum depth.")
+        ("use_scaling_fpu", "Scaling fpu by policy according to normal distribution.")
         ;
 #ifdef USE_OPENCL
     po::options_description gpu_desc("OpenCL device options");
@@ -550,6 +551,10 @@ static void parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("ladder_depth")) {
         cfg_ladder_depth = vm["ladder_depth"].as<int>();
+    }
+
+    if (vm.count("use_scaling_fpu")) {
+        cfg_scaling_fpu = true;
     }
 
     auto out = std::stringstream{};

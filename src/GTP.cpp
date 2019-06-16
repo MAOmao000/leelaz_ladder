@@ -103,6 +103,7 @@ bool cfg_ladder_check;
 int cfg_ladder_defense;
 int cfg_ladder_attack;
 int cfg_ladder_depth;
+bool cfg_scaling_fpu;
 AnalyzeTags cfg_analyze_tags;
 
 /* Parses tags for the lz-analyze GTP command and friends */
@@ -372,6 +373,7 @@ void GTP::setup_default_parameters() {
     cfg_ladder_defense = 3;
     cfg_ladder_attack = 10;
     cfg_ladder_depth = 200;
+    cfg_scaling_fpu = false;
 #ifdef USE_CPU_ONLY
     cfg_cpu_only = true;
 #else

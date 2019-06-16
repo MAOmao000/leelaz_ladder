@@ -327,18 +327,35 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
     // Count parentvisits manually to avoid issues with transpositions.
     auto total_visited_policy = 0.0f;
     auto parentvisits = size_t{0};
+    auto max_policy = 0.0f;
+    auto max_unvisited_policy = 0.0f;
     for (const auto& child : m_children) {
         if (child.valid()) {
             parentvisits += child.get_visits();
-            if (child.get_visits() > 0) {
-                total_visited_policy += child.get_policy();
+            if (cfg_scaling_fpu) {
+                max_policy = std::max(max_policy, child.get_policy());
+                if (child.get_visits() == 0) {
+                    max_unvisited_policy = std::max(max_unvisited_policy, child.get_policy());
+                }
+            } else {
+                if (child.get_visits() > 0) {
+                    total_visited_policy += child.get_policy();
+                }
             }
         }
     }
 
     const auto numerator = std::sqrt(double(parentvisits) *
             std::log(cfg_logpuct * double(parentvisits) + cfg_logconst));
-    const auto fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction) * std::sqrt(total_visited_policy);
+    auto fpu_reduction = 0.0f;
+    if (cfg_scaling_fpu) {
+        const auto policyratio = (max_policy - max_unvisited_policy)
+                               / (max_policy + max_unvisited_policy);
+        fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction)
+                      * Utils::erfinv_approx(policyratio);
+    } else {
+        fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction) * std::sqrt(total_visited_policy);
+    }
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     const auto fpu_eval = get_net_eval(color) - fpu_reduction;
 
