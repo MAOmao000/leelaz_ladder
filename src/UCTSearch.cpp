@@ -252,8 +252,13 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
         }
     }
 
+    UCTNode* next;
     if (node->has_children() && !result.valid()) {
-        auto next = node->uct_select_child(color, node == m_root.get());
+        if (cfg_fpu_reduction > 0.0f) {
+            next = node->uct_select_child(color, node == m_root.get());
+        } else {
+            next = node->uct_select_child(color);
+        }
         auto move = next->get_move();
 
         currstate.play_move(move);

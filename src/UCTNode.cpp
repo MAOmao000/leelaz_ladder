@@ -392,6 +392,81 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
     return best->get();
 }
 
+UCTNode* UCTNode::uct_select_child(int color) {
+    wait_expanded();
+
+    // Children are sorted by descending policy.
+    // An unvisited child gets the lowest winrate *to the left* .
+    // We need the array because an unvisited child can be followed by visited ones.
+    // Also, cache everything to minimize threading inconsistencies.
+    // This is not paranoia. I tried.
+    float winrates[362]; // On the stack. No mallocs.
+    int visits[362];
+    int idx = -1;
+    // Do this as quickly as possible. Ideally we should lock the node.
+    for (auto& child : m_children) {
+        idx++;
+        visits[idx] = child.get_visits();
+        if (visits[idx]) {
+            winrates[idx] = child.get_eval(color);
+        }
+    }
+
+    float smallest_winrate = get_net_eval(color); // Important. Do no start with anything else.
+    auto parentvisits = 0;
+    idx = -1;
+    for (auto& child : m_children) {
+        idx++;
+        if (visits[idx] > 0) {
+            if (child.active()) {
+                if (child.is_inflated() && child->m_expand_state.load() == ExpandState::EXPANDING) {
+                    // // Someone else is expanding this node, do nothing
+                } else {
+                    smallest_winrate = std::min(smallest_winrate, winrates[idx]);
+                }
+            }
+        } else {
+            winrates[idx] = smallest_winrate * 0.8f;
+        }
+        if (child.valid()) {
+            parentvisits += visits[idx];
+        }
+    }
+
+    const auto numerator = std::sqrt(double(parentvisits) *
+            std::log(cfg_logpuct * double(parentvisits) + cfg_logconst));
+
+    auto best = static_cast<UCTNodePointer*>(nullptr);
+    auto best_value = std::numeric_limits<double>::lowest();
+
+    idx = -1;
+    for (auto& child : m_children) {
+        idx++;
+        if (!child.active()) {
+            continue;
+        }
+        const auto psa = child.get_policy();
+        const auto denom = 1.0 + visits[idx];
+        const auto puct = cfg_puct * psa * (numerator / denom);
+        const auto value = winrates[idx] + puct;
+        assert(value > std::numeric_limits<double>::lowest());
+
+        if (value > best_value) {
+            if (child.is_inflated() && child->m_expand_state.load() == ExpandState::EXPANDING) {
+                // Someone else is expanding this node, never select it
+            }
+            else {
+                best_value = value;
+                best = &child;
+            }
+        }
+    }
+
+    assert(best != nullptr);
+    best->inflate();
+    return best->get();
+}
+
 class NodeComp : public std::binary_function<UCTNodePointer&,
                                              UCTNodePointer&, bool> {
 public:
