@@ -426,7 +426,7 @@ UCTNode* UCTNode::uct_select_child(int color) {
                 }
             }
         } else {
-            winrates[idx] = smallest_winrate * 0.8f;
+            winrates[idx] = smallest_winrate;
         }
         if (child.valid()) {
             parentvisits += visits[idx];
