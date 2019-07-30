@@ -345,16 +345,17 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         }
     }
 
-    const auto numerator = std::sqrt(double(parentvisits) *
-            std::log(cfg_logpuct * double(parentvisits) + cfg_logconst));
+    const auto numerator = std::sqrt(double(parentvisits)
+                         * std::log(cfg_logpuct * double(parentvisits) + cfg_logconst));
     auto fpu_reduction = 0.0f;
     if (cfg_scaling_fpu) {
         const auto policyratio = (max_policy - max_unvisited_policy)
                                / (max_policy + max_unvisited_policy);
         fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction)
                       * Utils::erfinv_approx(policyratio);
-    } else {
-        fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction) * std::sqrt(total_visited_policy);
+    } else if (cfg_fpu_reduction >= 0.01f) {
+        fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction)
+                      * std::sqrt(total_visited_policy);
     }
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     const auto fpu_eval = get_net_eval(color) - fpu_reduction;

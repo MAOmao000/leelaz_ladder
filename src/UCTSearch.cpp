@@ -108,7 +108,6 @@ private:
 
 UCTSearch::UCTSearch(GameState& g, Network& network)
     : m_rootstate(g), m_network(network) {
-    myprintf("Program Version %s%s\n", PROGRAM_VERSION, ".3");
     set_playout_limit(cfg_max_playouts);
     set_visit_limit(cfg_max_visits);
 
