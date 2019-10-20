@@ -100,8 +100,17 @@ bool UCTNode::create_children(Network & network,
         FreeGame(game);
     }
 
-    const auto raw_netlist = network.get_output(
-        &state, Network::Ensemble::RANDOM_SYMMETRY);
+//    const auto raw_netlist = network.get_output(
+//        &state, Network::Ensemble::RANDOM_SYMMETRY);
+    NNCache::Netresult raw_netlist;
+    try {
+        raw_netlist = network.get_output(
+            &state, Network::Ensemble::RANDOM_SYMMETRY);
+    } catch (NetworkHaltException & e) {
+        expand_cancel();
+
+        throw;
+    }
 
     // DCNN returns winrate as side to move
     const auto stm_eval = raw_netlist.winrate;
