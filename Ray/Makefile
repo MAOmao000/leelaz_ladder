@@ -43,7 +43,7 @@ endif
 #CXXFLAGS += -I/opt/intel/mkl/include
 #LDFLAGS  += -L/opt/intel/mkl/lib/intel64/
 
-CXXFLAGS += -I. -I../
+CXXFLAGS += -I. -I../ -I../src/
 CPPFLAGS += -MD -MP
 
 sources = GoBoard.cpp Ladder.cpp Pattern.cpp SearchBoard.cpp ZobristHash.cpp
