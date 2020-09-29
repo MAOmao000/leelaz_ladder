@@ -27,9 +27,6 @@
     work.
 */
 
-#include "GameState.h"
-#include "Network.h"
-
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -37,17 +34,20 @@
 #include <memory>
 #include <string>
 
+#include "GameState.h"
+
 #include "FastBoard.h"
 #include "FastState.h"
 #include "FullBoard.h"
 #include "KoState.h"
+#include "Network.h"
 #include "UCTSearch.h"
 
-void GameState::init_game(int size, float komi) {
+void GameState::init_game(const int size, const float komi) {
     KoState::init_game(size, komi);
 
-    game_history.clear();
-    game_history.emplace_back(std::make_shared<KoState>(*this));
+    m_game_history.clear();
+    m_game_history.emplace_back(std::make_shared<KoState>(*this));
 
     m_timecontrol.reset_clocks();
 
@@ -57,8 +57,8 @@ void GameState::init_game(int size, float komi) {
 void GameState::reset_game() {
     KoState::reset_game();
 
-    game_history.clear();
-    game_history.emplace_back(std::make_shared<KoState>(*this));
+    m_game_history.clear();
+    m_game_history.emplace_back(std::make_shared<KoState>(*this));
 
     m_timecontrol.reset_clocks();
 
@@ -66,9 +66,9 @@ void GameState::reset_game() {
 }
 
 bool GameState::forward_move() {
-    if (game_history.size() > m_movenum + 1) {
+    if (m_game_history.size() > m_movenum + 1) {
         m_movenum++;
-        *(static_cast<KoState*>(this)) = *game_history[m_movenum];
+        *(static_cast<KoState*>(this)) = *m_game_history[m_movenum];
         return true;
     } else {
         return false;
@@ -80,7 +80,7 @@ bool GameState::undo_move() {
         m_movenum--;
 
         // this is not so nice, but it should work
-        *(static_cast<KoState*>(this)) = *game_history[m_movenum];
+        *(static_cast<KoState*>(this)) = *m_game_history[m_movenum];
 
         // This also restores hashes as they're part of state
         return true;
@@ -90,15 +90,15 @@ bool GameState::undo_move() {
 }
 
 void GameState::rewind() {
-    *(static_cast<KoState*>(this)) = *game_history[0];
+    *(static_cast<KoState*>(this)) = *m_game_history[0];
     m_movenum = 0;
 }
 
-void GameState::play_move(int vertex) {
+void GameState::play_move(const int vertex) {
     play_move(get_to_move(), vertex);
 }
 
-void GameState::play_move(int color, int vertex) {
+void GameState::play_move(const int color, const int vertex) {
     if (vertex == FastBoard::RESIGN) {
         m_resigned = color;
     } else {
@@ -106,8 +106,8 @@ void GameState::play_move(int color, int vertex) {
     }
 
     // cut off any leftover moves from navigating
-    game_history.resize(m_movenum);
-    game_history.emplace_back(std::make_shared<KoState>(*this));
+    m_game_history.resize(m_movenum);
+    m_game_history.emplace_back(std::make_shared<KoState>(*this));
 }
 
 bool GameState::play_textmove(std::string color, const std::string& vertex) {
@@ -122,8 +122,9 @@ bool GameState::play_textmove(std::string color, const std::string& vertex) {
     }
 
     const auto move = board.text_to_move(vertex);
-    if (move == FastBoard::NO_VERTEX ||
-        (move != FastBoard::PASS && move != FastBoard::RESIGN && board.get_state(move) != FastBoard::EMPTY)) {
+    if (move == FastBoard::NO_VERTEX
+        || (move != FastBoard::PASS && move != FastBoard::RESIGN
+            && board.get_state(move) != FastBoard::EMPTY)) {
         return false;
     }
 
@@ -133,11 +134,11 @@ bool GameState::play_textmove(std::string color, const std::string& vertex) {
     return true;
 }
 
-void GameState::stop_clock(int color) {
+void GameState::stop_clock(const int color) {
     m_timecontrol.stop(color);
 }
 
-void GameState::start_clock(int color) {
+void GameState::start_clock(const int color) {
     m_timecontrol.start(color);
 }
 
@@ -163,26 +164,25 @@ void GameState::set_timecontrol(const TimeControl& timecontrol) {
     m_timecontrol = timecontrol;
 }
 
-void GameState::set_timecontrol(int maintime, int byotime,
-                                int byostones, int byoperiods) {
-    TimeControl timecontrol(maintime, byotime,
-                            byostones, byoperiods);
+void GameState::set_timecontrol(const int maintime, const int byotime,
+                                const int byostones, const int byoperiods) {
+    TimeControl timecontrol(maintime, byotime, byostones, byoperiods);
 
     m_timecontrol = timecontrol;
 }
 
-void GameState::adjust_time(int color, int time, int stones) {
+void GameState::adjust_time(const int color, const int time, const int stones) {
     m_timecontrol.adjust_time(color, time, stones);
 }
 
 void GameState::anchor_game_history() {
     // handicap moves don't count in game history
     m_movenum = 0;
-    game_history.clear();
-    game_history.emplace_back(std::make_shared<KoState>(*this));
+    m_game_history.clear();
+    m_game_history.emplace_back(std::make_shared<KoState>(*this));
 }
 
-bool GameState::set_fixed_handicap(int handicap) {
+bool GameState::set_fixed_handicap(const int handicap) {
     if (!valid_handicap(handicap)) {
         return false;
     }
@@ -228,7 +228,7 @@ bool GameState::set_fixed_handicap(int handicap) {
     return true;
 }
 
-int GameState::set_fixed_handicap_2(int handicap) {
+int GameState::set_fixed_handicap_2(const int handicap) {
     int board_size = board.get_boardsize();
     int low = board_size >= 13 ? 3 : 2;
     int mid = board_size / 2;
@@ -241,15 +241,15 @@ int GameState::set_fixed_handicap_2(int handicap) {
         for (int i = low; i <= high; i += interval) {
             for (int j = low; j <= high; j += interval) {
                 if (placed >= handicap) return placed;
-                if (board.get_state(i-1, j-1) != FastBoard::EMPTY) continue;
-                if (board.get_state(i-1, j) != FastBoard::EMPTY) continue;
-                if (board.get_state(i-1, j+1) != FastBoard::EMPTY) continue;
-                if (board.get_state(i, j-1) != FastBoard::EMPTY) continue;
+                if (board.get_state(i - 1, j - 1) != FastBoard::EMPTY) continue;
+                if (board.get_state(i - 1, j) != FastBoard::EMPTY) continue;
+                if (board.get_state(i - 1, j + 1) != FastBoard::EMPTY) continue;
+                if (board.get_state(i, j - 1) != FastBoard::EMPTY) continue;
                 if (board.get_state(i, j) != FastBoard::EMPTY) continue;
-                if (board.get_state(i, j+1) != FastBoard::EMPTY) continue;
-                if (board.get_state(i+1, j-1) != FastBoard::EMPTY) continue;
-                if (board.get_state(i+1, j) != FastBoard::EMPTY) continue;
-                if (board.get_state(i+1, j+1) != FastBoard::EMPTY) continue;
+                if (board.get_state(i, j + 1) != FastBoard::EMPTY) continue;
+                if (board.get_state(i + 1, j - 1) != FastBoard::EMPTY) continue;
+                if (board.get_state(i + 1, j) != FastBoard::EMPTY) continue;
+                if (board.get_state(i + 1, j + 1) != FastBoard::EMPTY) continue;
                 play_move(FastBoard::BLACK, board.get_vertex(i, j));
                 placed++;
             }
@@ -260,7 +260,7 @@ int GameState::set_fixed_handicap_2(int handicap) {
     return placed;
 }
 
-bool GameState::valid_handicap(int handicap) {
+bool GameState::valid_handicap(const int handicap) {
     int board_size = board.get_boardsize();
 
     if (handicap < 2 || handicap > 9) {
@@ -279,7 +279,7 @@ bool GameState::valid_handicap(int handicap) {
     return true;
 }
 
-void GameState::place_free_handicap(int stones, Network & network) {
+void GameState::place_free_handicap(int stones, Network& network) {
     int limit = board.get_boardsize() * board.get_boardsize();
     if (stones > limit / 2) {
         stones = limit / 2;
@@ -300,7 +300,7 @@ void GameState::place_free_handicap(int stones, Network & network) {
         play_move(FastBoard::BLACK, move);
     }
 
-    if (orgstones)  {
+    if (orgstones) {
         board.set_to_move(FastBoard::WHITE);
     } else {
         board.set_to_move(FastBoard::BLACK);
@@ -311,12 +311,13 @@ void GameState::place_free_handicap(int stones, Network & network) {
     set_handicap(orgstones);
 }
 
-const FullBoard& GameState::get_past_board(int moves_ago) const {
+const FullBoard& GameState::get_past_board(const int moves_ago) const {
     assert(moves_ago >= 0 && (unsigned)moves_ago <= m_movenum);
-    assert(m_movenum + 1 <= game_history.size());
-    return game_history[m_movenum - moves_ago]->board;
+    assert(m_movenum + 1 <= m_game_history.size());
+    return m_game_history[m_movenum - moves_ago]->board;
 }
 
-const std::vector<std::shared_ptr<const KoState>>& GameState::get_game_history() const {
-    return game_history;
+const std::vector<std::shared_ptr<const KoState>>&
+GameState::get_game_history() const {
+    return m_game_history;
 }

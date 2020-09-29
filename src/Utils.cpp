@@ -28,22 +28,22 @@
 */
 
 #include "config.h"
-#include "Utils.h"
-
-#include <mutex>
-#include <cstdarg>
-#include <cstdio>
 
 #include <boost/filesystem.hpp>
 #include <boost/math/distributions/students_t.hpp>
+#include <cstdarg>
+#include <cstdio>
+#include <mutex>
+
+#include "Utils.h"
 
 #ifdef _WIN32
 #include <windows.h>
 #else
-#include <sys/select.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <pwd.h>
+#include <sys/select.h>
+#include <sys/types.h>
+#include <unistd.h>
 #endif
 
 #include "GTP.h"
@@ -56,12 +56,13 @@ std::array<float, z_entries> z_lookup;
 void Utils::create_z_table() {
     for (auto i = 1; i < z_entries + 1; i++) {
         boost::math::students_t dist(i);
-        auto z = boost::math::quantile(boost::math::complement(dist, cfg_ci_alpha));
+        auto z =
+            boost::math::quantile(boost::math::complement(dist, cfg_ci_alpha));
         z_lookup[i - 1] = z;
     }
 }
 
-float Utils::cached_t_quantile(int v) {
+float Utils::cached_t_quantile(const int v) {
     if (v < 1) {
         return z_lookup[0];
     }
@@ -89,9 +90,9 @@ bool Utils::input_pending() {
 #ifdef HAVE_SELECT
     fd_set read_fds;
     FD_ZERO(&read_fds);
-    FD_SET(0,&read_fds);
-    struct timeval timeout{0,0};
-    select(1,&read_fds,nullptr,nullptr,&timeout);
+    FD_SET(0, &read_fds);
+    struct timeval timeout{0, 0};
+    select(1, &read_fds, nullptr, nullptr, &timeout);
     return FD_ISSET(0, &read_fds);
 #else
     static int init = 0, pipe;
@@ -103,7 +104,8 @@ bool Utils::input_pending() {
         inh = GetStdHandle(STD_INPUT_HANDLE);
         pipe = !GetConsoleMode(inh, &dw);
         if (!pipe) {
-            SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
+            SetConsoleMode(inh,
+                           dw & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
             FlushConsoleInputBuffer(inh);
         }
     }
@@ -129,7 +131,7 @@ bool Utils::input_pending() {
 
 static std::mutex IOmutex;
 
-static void myprintf_base(const char *fmt, va_list ap) {
+static void myprintf_base(const char* const fmt, va_list ap) {
     va_list ap2;
     va_copy(ap2, ap);
 
@@ -142,7 +144,7 @@ static void myprintf_base(const char *fmt, va_list ap) {
     va_end(ap2);
 }
 
-void Utils::myprintf(const char *fmt, ...) {
+void Utils::myprintf(const char* const fmt, ...) {
     if (cfg_quiet) {
         return;
     }
@@ -153,22 +155,22 @@ void Utils::myprintf(const char *fmt, ...) {
     va_end(ap);
 }
 
-void Utils::myprintf_error(const char *fmt, ...) {
+void Utils::myprintf_error(const char* const fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     myprintf_base(fmt, ap);
     va_end(ap);
 }
 
-static void gtp_fprintf(FILE* file, const std::string& prefix,
-                        const char *fmt, va_list ap) {
+static void gtp_fprintf(FILE* const file, const std::string& prefix,
+                        const char* const fmt, va_list ap) {
     fprintf(file, "%s ", prefix.c_str());
     vfprintf(file, fmt, ap);
     fprintf(file, "\n\n");
 }
 
-static void gtp_base_printf(int id, std::string prefix,
-                            const char *fmt, va_list ap) {
+static void gtp_base_printf(const int id, std::string prefix,
+                            const char* const fmt, va_list ap) {
     if (id != -1) {
         prefix += std::to_string(id);
     }
@@ -179,14 +181,14 @@ static void gtp_base_printf(int id, std::string prefix,
     }
 }
 
-void Utils::gtp_printf(int id, const char *fmt, ...) {
+void Utils::gtp_printf(const int id, const char* const fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     gtp_base_printf(id, "=", fmt, ap);
     va_end(ap);
 }
 
-void Utils::gtp_printf_raw(const char *fmt, ...) {
+void Utils::gtp_printf_raw(const char* const fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stdout, fmt, ap);
@@ -200,7 +202,7 @@ void Utils::gtp_printf_raw(const char *fmt, ...) {
     }
 }
 
-void Utils::gtp_fail_printf(int id, const char *fmt, ...) {
+void Utils::gtp_fail_printf(const int id, const char* const fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     gtp_base_printf(id, "?", fmt, ap);
@@ -214,7 +216,7 @@ void Utils::log_input(const std::string& input) {
     }
 }
 
-size_t Utils::ceilMultiple(size_t a, size_t b) {
+size_t Utils::ceilMultiple(const size_t a, const size_t b) {
     if (a % b == 0) {
         return a;
     }
@@ -223,15 +225,16 @@ size_t Utils::ceilMultiple(size_t a, size_t b) {
     return ret;
 }
 
-const std::string Utils::leelaz_file(std::string file) {
+std::string Utils::leelaz_file(const std::string& file) {
 #if defined(_WIN32) || defined(__ANDROID__)
     boost::filesystem::path dir(boost::filesystem::current_path());
 #else
     // https://stackoverflow.com/a/26696759
-    const char *homedir;
+    const char* homedir;
     if ((homedir = getenv("HOME")) == nullptr) {
-        struct passwd *pwd;
-        if ((pwd = getpwuid(getuid())) == nullptr) { // NOLINT(runtime/threadsafe_fn)
+        struct passwd* pwd;
+        // NOLINTNEXTLINE(runtime/threadsafe_fn)
+        if ((pwd = getpwuid(getuid())) == nullptr) {
             return std::string();
         }
         homedir = pwd->pw_dir;

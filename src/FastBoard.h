@@ -40,6 +40,7 @@
 
 class FastBoard {
     friend class FastState;
+
 public:
     /*
         neighbor counts are up to 4, so 3 bits is ok,
@@ -60,7 +61,7 @@ public:
     /*
         vertex of a pass
     */
-    static constexpr int PASS   = -1;
+    static constexpr int PASS = -1;
     /*
         vertex of a "resign move"
     */
@@ -75,15 +76,15 @@ public:
 
     int get_boardsize() const;
     vertex_t get_state(int x, int y) const;
-    vertex_t get_state(int vertex) const ;
+    vertex_t get_state(int vertex) const;
     int get_vertex(int x, int y) const;
     void set_state(int x, int y, vertex_t content);
     void set_state(int vertex, vertex_t content);
     std::pair<int, int> get_xy(int vertex) const;
 
     bool is_suicide(int i, int color) const;
-    int count_pliberties(const int i) const;
-    bool is_eye(const int color, const int vtx) const;
+    int count_pliberties(int i) const;
+    bool is_eye(int color, int vtx) const;
 
     float area_score(float komi) const;
 
@@ -112,17 +113,17 @@ protected:
     static const std::array<int,      2> s_eyemask;
     static const std::array<vertex_t, 4> s_cinvert; /* color inversion */
 
-    std::array<vertex_t, NUM_VERTICES>         m_state;      /* board contents */
-    std::array<unsigned short, NUM_VERTICES+1> m_next;       /* next stone in string */
-    std::array<unsigned short, NUM_VERTICES+1> m_parent;     /* parent node of string */
-    std::array<unsigned short, NUM_VERTICES+1> m_libs;       /* liberties per string parent */
-    std::array<unsigned short, NUM_VERTICES+1> m_stones;     /* stones per string parent */
-    std::array<unsigned short, NUM_VERTICES>   m_neighbours; /* counts of neighboring stones */
-    std::array<int, 4>                         m_dirs;       /* movement directions 4 way */
-    std::array<int, 2>                         m_prisoners;  /* prisoners per color */
-    std::array<unsigned short, NUM_VERTICES>   m_empty;      /* empty intersections */
-    std::array<unsigned short, NUM_VERTICES>   m_empty_idx;  /* intersection indices */
-    int m_empty_cnt;                                         /* count of empties */
+    std::array<vertex_t, NUM_VERTICES>           m_state;      /* board contents */
+    std::array<unsigned short, NUM_VERTICES + 1> m_next;       /* next stone in string */
+    std::array<unsigned short, NUM_VERTICES + 1> m_parent;     /* parent node of string */
+    std::array<unsigned short, NUM_VERTICES + 1> m_libs;       /* liberties per string parent */
+    std::array<unsigned short, NUM_VERTICES + 1> m_stones;     /* stones per string parent */
+    std::array<unsigned short, NUM_VERTICES>     m_neighbours; /* counts of neighboring stones */
+    std::array<int, 4>                           m_dirs;       /* movement directions 4 way */
+    std::array<int, 2>                           m_prisoners;  /* prisoners per color */
+    std::array<unsigned short, NUM_VERTICES>     m_empty;      /* empty intersections */
+    std::array<unsigned short, NUM_VERTICES>     m_empty_idx;  /* intersection indices */
+    int m_empty_cnt;                                           /* count of empties */
 
     int m_tomove;
     int m_numvertices;
@@ -132,10 +133,10 @@ protected:
 
     int calc_reach_color(int color) const;
 
-    int count_neighbours(const int color, const int i) const;
-    void merge_strings(const int ip, const int aip);
-    void add_neighbour(const int i, const int color);
-    void remove_neighbour(const int i, const int color);
+    int count_neighbours(int color, int i) const;
+    void merge_strings(int ip, int aip);
+    void add_neighbour(int i, int color);
+    void remove_neighbour(int i, int color);
     void print_columns();
 };
 

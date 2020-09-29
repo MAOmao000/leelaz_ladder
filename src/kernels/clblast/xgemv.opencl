@@ -73,7 +73,8 @@ void Xgemv(const int m, const int n,
                     const __global real* restrict xgm, const int x_offset,
                     __global real* ygm, const int y_offset,
                     __global real* bias, const int relu) {
-  const int batch_id = get_global_id(1);
+
+  const int batch = get_global_id(1);
 
   // Local memory for the vector X
   __local real xlm[WGS1];
@@ -95,7 +96,7 @@ void Xgemv(const int m, const int n,
 
     // Loads the vector X into local memory
     const int lid = get_local_id(0);
-    xlm[lid] = LoadValue(xgm, (kwg + lid) + x_offset + batch_id * n);
+    xlm[lid] = LoadValue(xgm, (kwg + lid) + x_offset + batch * n);
 
     // Synchronizes all threads in a workgroup
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -107,14 +108,14 @@ void Xgemv(const int m, const int n,
       if (gid < m) {
 
         // The multiply-add function for the main part (divisable by WGS1)
-	    for (int kloop=0; kloop<WGS1; kloop+=UNROLL1) {
-		  #pragma unroll
-		  for (int _kunroll = 0; _kunroll < UNROLL1; _kunroll += 1) {
-		    const int k = kwg + kloop + _kunroll;
-		    real value = LoadMatrixA(agm, k, gid, a_ld, a_offset);
-		    MultiplyAdd(acc1[_w], xlm[kloop + _kunroll], value);
-		  }
-	    }
+        for (int kloop=0; kloop<WGS1; kloop+=UNROLL1) {
+          #pragma unroll
+          for (int _kunroll = 0; _kunroll < UNROLL1; _kunroll += 1) {
+            const int k = kwg + kloop + _kunroll;
+            real value = LoadMatrixA(agm, k, gid, a_ld, a_offset);
+            MultiplyAdd(acc1[_w], xlm[kloop + _kunroll], value);
+          }
+        }
       }
     }
 
@@ -131,16 +132,17 @@ void Xgemv(const int m, const int n,
       // The multiply-add function for the remainder part (not divisable by WGS1)
       for (int k=n_floor; k<n; ++k) {
         real value = LoadMatrixA(agm, k, gid, a_ld, a_offset);
-        const real x_k = LoadValue(xgm, k + x_offset + batch_id * n);
+        const real x_k = LoadValue(xgm, k + x_offset + batch * n);
         MultiplyAdd(acc1[_w], x_k, value);
+
       }
 
       // Stores the final result
-	  real out = acc1[_w] + LoadValue(bias, gid + y_offset);
-	  if (relu) {
-	    out = out > 0.0f ? out : 0.0f;
-	  }
-      StoreValue(ygm, gid + y_offset + batch_id * m, out);
+      real out = acc1[_w] + LoadValue(bias, gid + y_offset);
+      if (relu) {
+        out = out > 0.0f ? out : 0.0f;
+      }
+      StoreValue(ygm, gid + y_offset + batch * m, out);
     }
   }
 }

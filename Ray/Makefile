@@ -3,21 +3,21 @@ THE_OS := $(shell uname -s)
 default:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) CC=gcc CXX=g++ AR=gcc-ar \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -O3 -ffast-math -flto -march=native -std=c++14 -DNDEBUG'  \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-deprecated-copy -pipe -O3 -ffast-math -flto -march=native -std=c++14 -DNDEBUG'  \
 		LDFLAGS='$(LDFLAGS) -flto' \
 		libRay.a
 
 debug:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) CC=gcc CXX=g++ AR=ar \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -Og -g -std=c++14' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-deprecated-copy -pipe -Og -g -std=c++14' \
 		LDFLAGS='$(LDFLAGS) -g' \
 		libRay.a
 
 clang:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) CC=clang CXX=clang++ AR=ar \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-missing-braces -Wno-mismatched-tags -O3 -ffast-math -flto -march=native -std=c++14 -DNDEBUG' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-deprecated-copy -O3 -ffast-math -flto -march=native -std=c++14 -DNDEBUG' \
 		LDFLAGS='$(LDFLAGS) -flto -fuse-linker-plugin' \
 		libRay.a
 

@@ -31,13 +31,15 @@
 #define FULLBOARD_H_INCLUDED
 
 #include "config.h"
+
 #include <cstdint>
+
 #include "FastBoard.h"
 
 class FullBoard : public FastBoard {
 public:
     int remove_string(int i);
-    int update_board(const int color, const int i);
+    int update_board(int color, int i);
 
     std::uint64_t get_hash() const;
     std::uint64_t get_ko_hash() const;
@@ -54,7 +56,7 @@ public:
     std::uint64_t m_ko_hash;
 
 private:
-    template<class Function>
+    template <class Function>
     std::uint64_t calc_hash(int komove, Function transform) const;
 };
 

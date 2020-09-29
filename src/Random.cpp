@@ -28,12 +28,13 @@
 */
 
 #include "config.h"
-#include "Random.h"
 
 #include <climits>
 #include <cstdint>
-#include <thread>
 #include <random>
+#include <thread>
+
+#include "Random.h"
 
 #include "GTP.h"
 #include "Utils.h"
@@ -43,7 +44,7 @@ Random& Random::get_Rng() {
     return s_rng;
 }
 
-Random::Random(std::uint64_t seed) {
+Random::Random(const std::uint64_t seed) {
     if (seed == 0) {
         size_t thread_id =
             std::hash<std::thread::id>()(std::this_thread::get_id());
@@ -84,11 +85,10 @@ static std::uint64_t splitmix64(std::uint64_t z) {
     return z ^ (z >> 31);
 }
 
-void Random::seedrandom(std::uint64_t seed) {
+void Random::seedrandom(const std::uint64_t seed) {
     // Initialize state of xoroshiro128+ by transforming the seed
     // with the splitmix64 algorithm.
     // As suggested by http://xoroshiro.di.unimi.it/xoroshiro128plus.c
     m_s[0] = splitmix64(seed);
     m_s[1] = splitmix64(m_s[0]);
 }
-

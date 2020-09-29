@@ -53,7 +53,7 @@ public:
     void reset_game();
     bool set_fixed_handicap(int stones);
     int set_fixed_handicap_2(int stones);
-    void place_free_handicap(int stones, Network & network);
+    void place_free_handicap(int stones, Network& network);
     void anchor_game_history();
 
     void rewind(); /* undo infinite */
@@ -81,7 +81,7 @@ public:
 private:
     bool valid_handicap(int stones);
 
-    std::vector<std::shared_ptr<const KoState>> game_history;
+    std::vector<std::shared_ptr<const KoState>> m_game_history;
     TimeControl m_timecontrol;
     int m_resigned{FastBoard::EMPTY};
 };

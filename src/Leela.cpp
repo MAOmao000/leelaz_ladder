@@ -29,11 +29,11 @@
 
 #include "config.h"
 
-#include <cstdint>
 #include <algorithm>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 #include <boost/program_options.hpp>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -44,8 +44,8 @@
 
 #include "GTP.h"
 #include "GameState.h"
-#include "Network.h"
 #include "NNCache.h"
+#include "Network.h"
 #include "Random.h"
 #include "ThreadPool.h"
 #include "Utils.h"
@@ -79,8 +79,9 @@ static void license_blurb() {
         PROGRAM_VERSION);
 }
 
-static void calculate_thread_count_cpu(boost::program_options::variables_map & vm) {
-    // If we are CPU-based, there is no point using more than the number of CPUs/
+static void calculate_thread_count_cpu(
+    boost::program_options::variables_map& vm) {
+    // If we are CPU-based, there is no point using more than the number of CPUs.
     auto cfg_max_threads = std::min(SMP::get_num_cpus(), size_t{MAX_CPUS});
 
     if (vm["threads"].as<unsigned int>() > 0) {
@@ -96,7 +97,8 @@ static void calculate_thread_count_cpu(boost::program_options::variables_map & v
 }
 
 #ifdef USE_OPENCL
-static void calculate_thread_count_gpu(boost::program_options::variables_map & vm) {
+static void calculate_thread_count_gpu(
+    boost::program_options::variables_map& vm) {
     auto cfg_max_threads = size_t{MAX_CPUS};
 
     // Default thread count : GPU case
@@ -120,7 +122,8 @@ static void calculate_thread_count_gpu(boost::program_options::variables_map & v
         if (vm["batchsize"].as<unsigned int>() > 0) {
             cfg_batch_size = vm["batchsize"].as<unsigned int>();
         } else {
-            cfg_batch_size = (cfg_num_threads + (gpu_count * 2) - 1) / (gpu_count * 2);
+            cfg_batch_size =
+                (cfg_num_threads + (gpu_count * 2) - 1) / (gpu_count * 2);
 
             // no idea why somebody wants to use threads less than the number of GPUs
             // but should at least prevent crashing
@@ -135,22 +138,20 @@ static void calculate_thread_count_gpu(boost::program_options::variables_map & v
             cfg_batch_size = 5;
         }
 
-        cfg_num_threads = std::min(cfg_max_threads, cfg_batch_size * gpu_count * 2);
+        cfg_num_threads =
+            std::min(cfg_max_threads, cfg_batch_size * gpu_count * 2);
     }
 
     if (cfg_num_threads < cfg_batch_size) {
-        printf("Number of threads = %d must be no smaller than batch size = %d\n", cfg_num_threads, cfg_batch_size);
+        printf(
+            "Number of threads = %d must be no smaller than batch size = %d\n",
+            cfg_num_threads, cfg_batch_size);
         exit(EXIT_FAILURE);
     }
-
-
 }
 #endif
 
-float black_value = 1.0f;
-int act_mode = 0;
-
-static void parse_commandline(int argc, char *argv[]) {
+static void parse_commandline(const int argc, const char* const argv[]) {
     namespace po = boost::program_options;
     // Declare the supported options.
     po::options_description gen_desc("Generic options");
@@ -169,8 +170,10 @@ static void parse_commandline(int argc, char *argv[]) {
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                         "Resign when winrate is less than x%.\n"
                         "-1 uses 10% but scales for handicap.")
-        ("weights,w", po::value<std::string>()->default_value(cfg_weightsfile), "File with network weights.")
-        ("logfile,l", po::value<std::string>(), "File to log input/output to.")
+        ("weights,w", po::value<std::string>()->default_value(cfg_weightsfile),
+                      "File with network weights.")
+        ("logfile,l", po::value<std::string>(),
+                      "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
         ("timemanage", po::value<std::string>()->default_value("auto"),
                        "[auto|on|off|fast|no_pruning] Enable time management features.\n"
@@ -185,8 +188,6 @@ static void parse_commandline(int argc, char *argv[]) {
 #ifndef USE_CPU_ONLY
         ("cpu-only", "Use CPU-only implementation and do not use OpenCL device(s).")
 #endif
-        ("black-value", po::value<float>()->default_value(1.0f), "Specify the value of black stones (default is 1).")
-        ("activation", po::value<std::string>()->default_value("default"), "Specify an activation function to use(default, sqrt, linear, linear2).")
         ("add_analyze_interval", po::value<int>()->default_value(cfg_add_interval),
                       "Additional analyze interval(centi seconds).")
         ("no_ladder_check", "Disable ladder check.")
@@ -201,15 +202,16 @@ static void parse_commandline(int argc, char *argv[]) {
 #ifdef USE_OPENCL
     po::options_description gpu_desc("OpenCL device options");
     gpu_desc.add_options()
-        ("gpu",  po::value<std::vector<int> >(),
+        ("gpu", po::value<std::vector<int>>(),
                 "ID of the OpenCL device(s) to use (disables autodetection).")
         ("full-tuner", "Try harder to find an optimal OpenCL tuning.")
         ("tune-only", "Tune OpenCL only and then exit.")
-        ("batchsize", po::value<unsigned int>()->default_value(0), "Max batch size.  Select 0 to let leela-zero pick a reasonable default.")
+        ("batchsize", po::value<unsigned int>()->default_value(0),
+                      "Max batch size.  Select 0 to let leela-zero pick a reasonable default.")
 #ifdef USE_HALF
         ("precision", po::value<std::string>(),
-            "Floating-point precision (single/half/auto).\n"
-            "Default is to auto which automatically determines which one to use.")
+                      "Floating-point precision (single/half/auto).\n"
+                      "Default is to auto which automatically determines which one to use.")
 #endif
         ;
 #endif
@@ -221,13 +223,10 @@ static void parse_commandline(int argc, char *argv[]) {
         ("dumbpass,d", "Don't use heuristics for smarter passing.")
         ("randomcnt,m", po::value<int>()->default_value(cfg_random_cnt),
                         "Play more randomly the first x moves.")
-        ("randomvisits",
-            po::value<int>()->default_value(cfg_random_min_visits),
-            "Don't play random moves if they have <= x visits.")
-        ("randomtemp",
-            po::value<float>()->default_value(cfg_random_temp),
-            "Temperature to use for random move selection.")
-        ;
+        ("randomvisits", po::value<int>()->default_value(cfg_random_min_visits),
+                         "Don't play random moves if they have <= x visits.")
+        ("randomtemp", po::value<float>()->default_value(cfg_random_temp),
+                       "Temperature to use for random move selection.");
 #ifdef USE_TUNER
     po::options_description tuner_desc("Tuning options");
     tuner_desc.add_options()
@@ -237,27 +236,28 @@ static void parse_commandline(int argc, char *argv[]) {
         ("softmax_temp", po::value<float>())
         ("fpu_reduction", po::value<float>())
         ("ci_alpha", po::value<float>())
-        ("lcb_min_visit_ratio", po::value<float>())
-        ;
+        ("lcb_min_visit_ratio", po::value<float>());
 #endif
     // These won't be shown, we use them to catch incorrect usage of the
     // command line.
     po::options_description ignore("Ignored options");
 #ifndef USE_OPENCL
     ignore.add_options()
-        ("batchsize", po::value<unsigned int>()->default_value(1), "Max batch size.");
+        ("batchsize", po::value<unsigned int>()->default_value(1),
+                      "Max batch size.");
 #endif
     po::options_description h_desc("Hidden options");
     h_desc.add_options()
         ("arguments", po::value<std::vector<std::string>>());
     po::options_description visible;
-    visible.add(gen_desc)
+    visible
+        .add(gen_desc)
 #ifdef USE_OPENCL
-       .add(gpu_desc)
+        .add(gpu_desc)
 #endif
-       .add(selfplay_desc)
+        .add(selfplay_desc)
 #ifdef USE_TUNER
-       .add(tuner_desc);
+        .add(tuner_desc);
 #else
         ;
 #endif
@@ -269,9 +269,12 @@ static void parse_commandline(int argc, char *argv[]) {
     po::variables_map vm;
     try {
         po::store(po::command_line_parser(argc, argv)
-                  .options(all).positional(p_desc).run(), vm);
+                      .options(all)
+                      .positional(p_desc)
+                      .run(),
+                  vm);
         po::notify(vm);
-    }  catch(const boost::program_options::error& e) {
+    } catch (const boost::program_options::error& e) {
         printf("ERROR: %s\n", e.what());
         license_blurb();
         std::cout << visible << std::endl;
@@ -299,7 +302,7 @@ static void parse_commandline(int argc, char *argv[]) {
     }
 
     if (vm.count("benchmark")) {
-        cfg_quiet = true;  // Set this early to avoid unnecessary output.
+        cfg_quiet = true; // Set this early to avoid unnecessary output.
     }
 
 #ifdef USE_TUNER
@@ -333,9 +336,11 @@ static void parse_commandline(int argc, char *argv[]) {
     }
 
     cfg_weightsfile = vm["weights"].as<std::string>();
-    if (vm["weights"].defaulted() && !boost::filesystem::exists(cfg_weightsfile)) {
+    if (vm["weights"].defaulted()
+        && !boost::filesystem::exists(cfg_weightsfile)) {
         printf("A network weights file is required to use the program.\n");
-        printf("By default, Leela Zero looks for it in %s.\n", cfg_weightsfile.c_str());
+        printf("By default, Leela Zero looks for it in %s.\n",
+               cfg_weightsfile.c_str());
         exit(EXIT_FAILURE);
     }
 
@@ -345,7 +350,7 @@ static void parse_commandline(int argc, char *argv[]) {
 
 #ifdef USE_OPENCL
     if (vm.count("gpu")) {
-        cfg_gpus = vm["gpu"].as<std::vector<int> >();
+        cfg_gpus = vm["gpu"].as<std::vector<int>>();
     }
 
     if (vm.count("full-tuner")) {
@@ -487,7 +492,7 @@ static void parse_commandline(int argc, char *argv[]) {
         int lagbuffer = vm["lagbuffer"].as<int>();
         if (lagbuffer != cfg_lagbuffer_cs) {
             myprintf("Using per-move time margin of %.2fs.\n",
-                     lagbuffer/100.0f);
+                     lagbuffer / 100.0f);
             cfg_lagbuffer_cs = lagbuffer;
         }
     }
@@ -495,37 +500,13 @@ static void parse_commandline(int argc, char *argv[]) {
         // These must be set later to override default arguments.
         cfg_allow_pondering = false;
         cfg_benchmark = true;
-        cfg_noise = false;  // Not much of a benchmark if random was used.
+        cfg_noise = false; // Not much of a benchmark if random was used.
         cfg_random_cnt = 0;
         cfg_rng_seed = 1;
-        cfg_timemanage = TimeManagement::OFF;  // Reliable number of playouts.
+        cfg_timemanage = TimeManagement::OFF; // Reliable number of playouts.
 
         if (!vm.count("playouts") && !vm.count("visits")) {
             cfg_max_visits = 3200; // Default to self-play and match values.
-        }
-
-    }
-
-    if (vm.count("black-value"))
-    {
-        black_value = vm["black-value"].as<float>();
-    }
-
-    if (vm.count("activation"))
-    {
-        std::string function = vm["activation"].as<std::string>();
-
-        if (function == "sqrt")
-        {
-            act_mode = 1;
-        }
-        else if (function == "linear")
-        {
-            act_mode = 2;
-        }
-        else if (function == "linear2")
-        {
-            act_mode = 3;
         }
     }
 
@@ -594,7 +575,7 @@ void init_global_objects() {
 }
 
 void benchmark(GameState& game) {
-    game.set_timecontrol(0, 1, 0, 0);  // Set infinite time.
+    game.set_timecontrol(0, 1, 0, 0); // Set infinite time.
     game.play_textmove("b", "r16");
     game.play_textmove("w", "d4");
     game.play_textmove("b", "c3");
@@ -604,7 +585,7 @@ void benchmark(GameState& game) {
     search->think(FastBoard::WHITE);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 #ifndef _WIN32
     stack_t ss;
     ss.ss_sp    = malloc(ALT_STACK_SIZE);

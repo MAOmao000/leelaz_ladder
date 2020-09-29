@@ -1,6 +1,6 @@
 /*
     This file is part of Leela Zero.
-    Copyright (C) 2017-2018 Gian-Carlo Pascutto and contributors
+    Copyright (C) 2019 Henrik Forsten and contributors
 
     Leela Zero is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@ R"(
 
         const int col = get_global_id(0);  // column
         const int c = get_global_id(1);  // channel
-		const int batch_id = get_global_id(2); // batch index
 
         const int lid = get_local_id(0);
 
@@ -38,7 +37,7 @@ R"(
             real acc = ZERO;
 
             for ( int i = 0; i < BOARD_SIZE; i++) {
-                acc += vload_net_t(channels * NUM_INTERSECTIONS * batch_id + c * NUM_INTERSECTIONS + col * BOARD_SIZE + i, in);
+                acc += vload_net_t(c * NUM_INTERSECTIONS + i * BOARD_SIZE + col, in);
             }
             row_acc[lid] = acc;
         }
@@ -51,7 +50,7 @@ R"(
                 acc += row_acc[i];
             }
             acc = acc/NUM_INTERSECTIONS;
-            vstore_net_t(acc, channels * batch_id + c, out);
+            vstore_net_t(acc, c, out);
         }
     }
 // End of the C++11 raw string literal

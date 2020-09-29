@@ -3,21 +3,21 @@ THE_OS := $(shell uname -s)
 default:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) CC=gcc CXX=g++ \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -g -Ofast -ffast-math -flto -fopenmp -mtune=native -march=native -mfpmath=both -std=c++14 -DNDEBUG -DUSE_BLAS' \
-		LDFLAGS='$(LDFLAGS) -g -flto -fopenmp' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-deprecated-copy -pipe -O3 -ffast-math -flto -fopenmp -mtune=native -march=native -mfpmath=both -std=c++14 -DNDEBUG' \
+		LDFLAGS='$(LDFLAGS) -flto -fopenmp' \
 		leelaz
 
 debug:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) CC=gcc CXX=g++ \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-ignored-attributes -pipe -Og -g -std=c++14' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-deprecated-copy -pipe -Og -g -std=c++14' \
 		LDFLAGS='$(LDFLAGS) -g' \
 		leelaz
 
 clang:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) CC=clang CXX=clang++ \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-missing-braces -Wno-mismatched-tags -O3 -ffast-math -flto -march=native -std=c++14 -DNDEBUG' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -Wno-deprecated-copy -O3 -ffast-math -flto -march=native -std=c++14 -DNDEBUG' \
 		LDFLAGS='$(LDFLAGS) -flto -fuse-linker-plugin' \
 		leelaz
 
@@ -26,7 +26,7 @@ LIBS =
 
 ifeq ($(THE_OS),Linux)
 # for Linux with OpenBLAS
-	CXXFLAGS += -I/usr/include/openblas
+	CXXFLAGS += -I/usr/include/openblas -I./Eigen
 	DYNAMIC_LIBS += -lopenblas
 	DYNAMIC_LIBS += -lOpenCL
 endif
@@ -47,7 +47,7 @@ endif
 #LDFLAGS  += -L/opt/intel/mkl/lib/intel64_lin/
 
 CXXFLAGS += -I.
-CXXFLAGS += -I./Eigen
+#CXXFLAGS += -I./Eigen
 CXXFLAGS += -I../
 CPPFLAGS += -MD -MP
 

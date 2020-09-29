@@ -33,10 +33,10 @@
 #include "config.h"
 
 #include <atomic>
-#include <memory>
-#include <vector>
 #include <cassert>
 #include <cstring>
+#include <memory>
+#include <vector>
 
 #include "GameState.h"
 #include "Network.h"
@@ -54,23 +54,22 @@ public:
     UCTNode() = delete;
     ~UCTNode() = default;
 
-    bool create_children(Network & network,
-                         std::atomic<int>& nodecount,
+    bool create_children(Network& network, std::atomic<int>& nodecount,
                          GameState& state, float& eval,
                          float min_psa_ratio = 0.0f);
 
     const std::vector<UCTNodePointer>& get_children() const;
     void sort_children(int color, float lcb_min_visits);
-    UCTNode& get_best_root_child(int color);
+    UCTNode& get_best_root_child(int color) const;
     UCTNode* uct_select_child(int color, bool is_root);
     UCTNode* uct_select_child(int color);
 
     size_t count_nodes_and_clear_expand_state();
     bool first_visit() const;
     bool has_children() const;
-    bool expandable(const float min_psa_ratio = 0.0f) const;
+    bool expandable(float min_psa_ratio = 0.0f) const;
     void invalidate();
-    void set_active(const bool active);
+    void set_active(bool active);
     bool valid() const;
     bool active() const;
     int get_move() const;
@@ -88,16 +87,16 @@ public:
 
     // Defined in UCTNodeRoot.cpp, only to be called on m_root in UCTSearch
     void randomize_first_proportionally();
-    void prepare_root_node(Network & network, int color,
-                           std::atomic<int>& nodecount,
-                           GameState& state);
+    void prepare_root_node(Network& network, int color,
+                           std::atomic<int>& nodecount, GameState& state);
 
     UCTNode* get_first_child() const;
     UCTNode* get_nopass_child(FastState& state) const;
-    std::unique_ptr<UCTNode> find_child(const int move);
+    std::unique_ptr<UCTNode> find_child(int move);
     void inflate_all_children();
 
     void clear_expand_state();
+
 private:
     enum Status : char {
         INVALID, // superko
@@ -165,7 +164,7 @@ private:
     void expand_cancel();
 
     // wait until we are on EXPANDED state
-    void wait_expanded();
+    void wait_expanded() const;
 };
 
 #endif

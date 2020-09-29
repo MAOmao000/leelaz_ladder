@@ -29,11 +29,11 @@
 
 #include "config.h"
 
-#include <cassert>
-#include <cstdio>
-#include <cstdint>
 #include <algorithm>
+#include <cassert>
 #include <cmath>
+#include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <iterator>
 #include <limits>
@@ -42,6 +42,7 @@
 #include <vector>
 
 #include "UCTNode.h"
+
 #include "FastBoard.h"
 #include "FastState.h"
 #include "GTP.h"
@@ -54,18 +55,16 @@
 
 using namespace Utils;
 
-UCTNode::UCTNode(int vertex, float policy) : m_move(vertex), m_policy(policy) {
-}
+UCTNode::UCTNode(const int vertex, const float policy)
+    : m_move(vertex), m_policy(policy) {}
 
 bool UCTNode::first_visit() const {
     return m_visits == 0;
 }
 
-bool UCTNode::create_children(Network & network,
-                              std::atomic<int>& nodecount,
-                              GameState& state,
-                              float& eval,
-                              float min_psa_ratio) {
+bool UCTNode::create_children(Network& network, std::atomic<int>& nodecount,
+                              GameState& state, float& eval,
+                              const float min_psa_ratio) {
     // no successors in final state
     if (state.get_passes() >= 2) {
         return false;
@@ -104,11 +103,10 @@ bool UCTNode::create_children(Network & network,
 //        &state, Network::Ensemble::RANDOM_SYMMETRY);
     NNCache::Netresult raw_netlist;
     try {
-        raw_netlist = network.get_output(
-            &state, Network::Ensemble::RANDOM_SYMMETRY);
-    } catch (NetworkHaltException & e) {
+        raw_netlist =
+            network.get_output(&state, Network::Ensemble::RANDOM_SYMMETRY);
+    } catch (NetworkHaltException&) {
         expand_cancel();
-
         throw;
     }
 
@@ -143,7 +141,7 @@ bool UCTNode::create_children(Network & network,
     auto allow_pass = cfg_dumbpass;
 
     // Less than 20 available intersections in a 19x19 game.
-    if (nodelist.size() <= std::max(5, BOARD_SIZE)) {
+    if (int(nodelist.size()) <= std::max(5, BOARD_SIZE)) {
         allow_pass = true;
     }
 
@@ -176,13 +174,15 @@ bool UCTNode::create_children(Network & network,
     }
 
     link_nodelist(nodecount, nodelist, min_psa_ratio);
+    // Increment visit and assign eval.
+    update(eval);
     expand_done();
     return true;
 }
 
 void UCTNode::link_nodelist(std::atomic<int>& nodecount,
                             std::vector<Network::PolicyVertexPair>& nodelist,
-                            float min_psa_ratio) {
+                            const float min_psa_ratio) {
     assert(min_psa_ratio < m_min_psa_ratio_children);
 
     if (nodelist.empty()) {
@@ -196,11 +196,9 @@ void UCTNode::link_nodelist(std::atomic<int>& nodecount,
     const auto old_min_psa = max_psa * m_min_psa_ratio_children;
     const auto new_min_psa = max_psa * min_psa_ratio;
     if (new_min_psa > 0.0f) {
-        m_children.reserve(
-            std::count_if(cbegin(nodelist), cend(nodelist),
-                [=](const auto& node) { return node.first >= new_min_psa; }
-            )
-        );
+        m_children.reserve(std::count_if(
+            cbegin(nodelist), cend(nodelist),
+            [=](const auto& node) { return node.first >= new_min_psa; }));
     } else {
         m_children.reserve(nodelist.size());
     }
@@ -222,7 +220,6 @@ const std::vector<UCTNodePointer>& UCTNode::get_children() const {
     return m_children;
 }
 
-
 int UCTNode::get_move() const {
     return m_move;
 }
@@ -235,7 +232,7 @@ void UCTNode::virtual_loss_undo() {
     m_virtual_loss -= VIRTUAL_LOSS_COUNT;
 }
 
-void UCTNode::update(float eval) {
+void UCTNode::update(const float eval) {
     // Cache values to avoid race conditions.
     auto old_eval = static_cast<float>(m_blackevals);
     auto old_visits = static_cast<int>(m_visits);
@@ -267,11 +264,11 @@ float UCTNode::get_policy() const {
     return m_policy;
 }
 
-void UCTNode::set_policy(float policy) {
+void UCTNode::set_policy(const float policy) {
     m_policy = policy;
 }
 
-float UCTNode::get_eval_variance(float default_var) const {
+float UCTNode::get_eval_variance(const float default_var) const {
     return m_visits > 1 ? m_squared_eval_diff / (m_visits - 1) : default_var;
 }
 
@@ -279,7 +276,7 @@ int UCTNode::get_visits() const {
     return m_visits;
 }
 
-float UCTNode::get_eval_lcb(int color) const {
+float UCTNode::get_eval_lcb(const int color) const {
     // Lower confidence bound of winrate.
     auto visits = get_visits();
     if (visits < 2) {
@@ -294,7 +291,7 @@ float UCTNode::get_eval_lcb(int color) const {
     return mean - z * stddev;
 }
 
-float UCTNode::get_raw_eval(int tomove, int virtual_loss) const {
+float UCTNode::get_raw_eval(const int tomove, const int virtual_loss) const {
     auto visits = get_visits() + virtual_loss;
     assert(visits > 0);
     auto blackeval = get_blackevals();
@@ -308,14 +305,14 @@ float UCTNode::get_raw_eval(int tomove, int virtual_loss) const {
     return eval;
 }
 
-float UCTNode::get_eval(int tomove) const {
+float UCTNode::get_eval(const int tomove) const {
     // Due to the use of atomic updates and virtual losses, it is
     // possible for the visit count to change underneath us. Make sure
     // to return a consistent result to the caller by caching the values.
     return get_raw_eval(tomove, m_virtual_loss);
 }
 
-float UCTNode::get_net_eval(int tomove) const {
+float UCTNode::get_net_eval(const int tomove) const {
     if (tomove == FastBoard::WHITE) {
         return 1.0f - m_net_eval;
     }
@@ -326,11 +323,11 @@ double UCTNode::get_blackevals() const {
     return m_blackevals;
 }
 
-void UCTNode::accumulate_eval(float eval) {
+void UCTNode::accumulate_eval(const float eval) {
     atomic_add(m_blackevals, double(eval));
 }
 
-UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
+UCTNode* UCTNode::uct_select_child(const int color, const bool is_root) {
     wait_expanded();
 
     // Count parentvisits manually to avoid issues with transpositions.
@@ -354,8 +351,9 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         }
     }
 
-    const auto numerator = std::sqrt(double(parentvisits)
-                         * std::log(cfg_logpuct * double(parentvisits) + cfg_logconst));
+    const auto numerator = std::sqrt(
+        double(parentvisits)
+        * std::log(cfg_logpuct * double(parentvisits) + cfg_logconst));
     auto fpu_reduction = 0.0f;
     if (cfg_scaling_fpu) {
         const auto policyratio = (max_policy - max_unvisited_policy)
@@ -378,7 +376,8 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         }
 
         auto winrate = fpu_eval;
-        if (child.is_inflated() && child->m_expand_state.load() == ExpandState::EXPANDING) {
+        if (child.is_inflated()
+            && child->m_expand_state.load() == ExpandState::EXPANDING) {
             // Someone else is expanding this node, never select it
             // if we can avoid so, because we'd block on it.
             winrate = -1.0f - fpu_reduction;
@@ -402,7 +401,7 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
     return best->get();
 }
 
-UCTNode* UCTNode::uct_select_child(int color) {
+UCTNode* UCTNode::uct_select_child(const int color) {
     wait_expanded();
 
     // Children are sorted by descending policy.
@@ -477,16 +476,15 @@ UCTNode* UCTNode::uct_select_child(int color) {
     return best->get();
 }
 
-class NodeComp : public std::binary_function<UCTNodePointer&,
-                                             UCTNodePointer&, bool> {
+class NodeComp
+    : public std::binary_function<UCTNodePointer&, UCTNodePointer&, bool> {
 public:
-    NodeComp(int color, float lcb_min_visits) : m_color(color),
-        m_lcb_min_visits(lcb_min_visits){};
+    NodeComp(const int color, const float lcb_min_visits)
+        : m_color(color), m_lcb_min_visits(lcb_min_visits){};
 
     // WARNING : on very unusual cases this can be called on multithread
     // contexts (e.g., UCTSearch::get_pv()) so beware of race conditions
-    bool operator()(const UCTNodePointer& a,
-                    const UCTNodePointer& b) {
+    bool operator()(const UCTNodePointer& a, const UCTNodePointer& b) {
         auto a_visit = a.get_visits();
         auto b_visit = b.get_visits();
 
@@ -519,16 +517,18 @@ public:
         // both have same non-zero number of visits
         return a.get_eval(m_color) < b.get_eval(m_color);
     }
+
 private:
     int m_color;
     float m_lcb_min_visits;
 };
 
-void UCTNode::sort_children(int color, float lcb_min_visits) {
-    std::stable_sort(rbegin(m_children), rend(m_children), NodeComp(color, lcb_min_visits));
+void UCTNode::sort_children(const int color, const float lcb_min_visits) {
+    std::stable_sort(rbegin(m_children), rend(m_children),
+                     NodeComp(color, lcb_min_visits));
 }
 
-UCTNode& UCTNode::get_best_root_child(int color) {
+UCTNode& UCTNode::get_best_root_child(const int color) const {
     wait_expanded();
 
     assert(!m_children.empty());
@@ -538,8 +538,9 @@ UCTNode& UCTNode::get_best_root_child(int color) {
         max_visits = std::max(max_visits, node.get_visits());
     }
 
-    auto ret = std::max_element(begin(m_children), end(m_children),
-                                NodeComp(color, cfg_lcb_min_visit_ratio * max_visits));
+    auto ret =
+        std::max_element(begin(m_children), end(m_children),
+                         NodeComp(color, cfg_lcb_min_visit_ratio * max_visits));
     ret->inflate();
 
     return *(ret->get());
@@ -597,7 +598,7 @@ void UCTNode::expand_cancel() {
 #endif
     assert(v == ExpandState::EXPANDING);
 }
-void UCTNode::wait_expanded() {
+void UCTNode::wait_expanded() const {
     while (m_expand_state.load() == ExpandState::EXPANDING) {}
     auto v = m_expand_state.load();
 #ifdef NDEBUG
@@ -605,4 +606,3 @@ void UCTNode::wait_expanded() {
 #endif
     assert(v == ExpandState::EXPANDED);
 }
-

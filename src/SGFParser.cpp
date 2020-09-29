@@ -27,32 +27,34 @@
     work.
 */
 
-#include "SGFParser.h"
-
 #include <cassert>
 #include <cctype>
 #include <fstream>
 #include <stdexcept>
 #include <string>
 
+#include "SGFParser.h"
+
 #include "SGFTree.h"
 #include "Utils.h"
 
 std::vector<std::string> SGFParser::chop_stream(std::istream& ins,
-                                                size_t stopat) {
+                                                const size_t stopat) {
     std::vector<std::string> result;
     std::string gamebuff;
 
     ins >> std::noskipws;
 
-    int nesting = 0;      // parentheses
-    bool intag = false;   // brackets
+    int nesting = 0;    // parentheses
+    bool intag = false; // brackets
     int line = 0;
     gamebuff.clear();
 
     char c;
     while (ins >> c && result.size() <= stopat) {
-        if (c == '\n') line++;
+        if (c == '\n') {
+            line++;
+        }
 
         gamebuff.push_back(c);
         if (c == '\\') {
@@ -96,9 +98,10 @@ std::vector<std::string> SGFParser::chop_stream(std::istream& ins,
     return result;
 }
 
-std::vector<std::string> SGFParser::chop_all(std::string filename,
-                                             size_t stopat) {
-    std::ifstream ins(filename.c_str(), std::ifstream::binary | std::ifstream::in);
+std::vector<std::string> SGFParser::chop_all(const std::string& filename,
+                                             const size_t stopat) {
+    std::ifstream ins(filename.c_str(),
+                      std::ifstream::binary | std::ifstream::in);
 
     if (ins.fail()) {
         throw std::runtime_error("Error opening file");
@@ -111,12 +114,13 @@ std::vector<std::string> SGFParser::chop_all(std::string filename,
 }
 
 // scan the file and extract the game with number index
-std::string SGFParser::chop_from_file(std::string filename, size_t index) {
+std::string SGFParser::chop_from_file(const std::string& filename,
+                                      const size_t index) {
     auto vec = chop_all(filename, index);
     return vec[index];
 }
 
-std::string SGFParser::parse_property_name(std::istringstream & strm) {
+std::string SGFParser::parse_property_name(std::istringstream& strm) {
     std::string result;
 
     char c;
@@ -135,8 +139,8 @@ std::string SGFParser::parse_property_name(std::istringstream & strm) {
     return result;
 }
 
-bool SGFParser::parse_property_value(std::istringstream & strm,
-                                     std::string & result) {
+bool SGFParser::parse_property_value(std::istringstream& strm,
+                                     std::string& result) {
     strm >> std::noskipws;
 
     char c;
@@ -168,7 +172,7 @@ bool SGFParser::parse_property_value(std::istringstream & strm,
     return true;
 }
 
-void SGFParser::parse(std::istringstream & strm, SGFTree * node) {
+void SGFParser::parse(std::istringstream& strm, SGFTree* node) {
     bool splitpoint = false;
 
     char c;
@@ -211,7 +215,7 @@ void SGFParser::parse(std::istringstream & strm, SGFTree * node) {
             // start a variation here
             splitpoint = true;
             // new node
-            SGFTree * newptr = node->add_child();
+            SGFTree* newptr = node->add_child();
             parse(strm, newptr);
         } else if (c == ')') {
             // variation ends, go back
@@ -227,7 +231,7 @@ void SGFParser::parse(std::istringstream & strm, SGFTree * node) {
             }
         } else if (c == ';') {
             // new node
-            SGFTree * newptr = node->add_child();
+            SGFTree* newptr = node->add_child();
             node = newptr;
             continue;
         }

@@ -32,12 +32,12 @@
 #include "config.h"
 
 #include <list>
-#include <vector>
 #include <thread>
+#include <vector>
 
-#include "SMP.h"
 #include "ForwardPipe.h"
 #include "OpenCL.h"
+#include "SMP.h"
 #include "ThreadPool.h"
 
 #ifndef NDEBUG
@@ -60,23 +60,22 @@ class OpenCLScheduler : public ForwardPipe {
         ForwardQueueEntry(const std::vector<float>& input,
                           std::vector<float>& output_pol,
                           std::vector<float>& output_val)
-        : in(input), out_p(output_pol), out_v(output_val)
-          {}
+            : in(input), out_p(output_pol), out_v(output_val) {}
     };
+
 public:
     virtual ~OpenCLScheduler();
     OpenCLScheduler();
 
-//    virtual void initialize(const int channels);
-    virtual void initialize(const int channels, const NetworkType net_type);
+    virtual void initialize(int channels);
     virtual void forward(const std::vector<float>& input,
                          std::vector<float>& output_pol,
                          std::vector<float>& output_val);
     virtual bool needs_autodetect();
-    virtual void push_weights(unsigned int filter_size,
-                              unsigned int channels,
-                              unsigned int outputs,
-                              std::shared_ptr<const ForwardPipeWeights> weights);
+    virtual void push_weights(
+        unsigned int filter_size, unsigned int channels, unsigned int outputs,
+        std::shared_ptr<const ForwardPipeWeights> weights);
+
 private:
     bool m_running = true;
     std::atomic<bool> m_draining{false};
@@ -95,16 +94,14 @@ private:
     std::list<std::shared_ptr<ForwardQueueEntry>> m_forward_queue;
     std::list<std::thread> m_worker_threads;
 
-    void batch_worker(const size_t gnum);
-    void push_input_convolution(unsigned int filter_size,
-                                unsigned int channels,
+    void batch_worker(size_t gnum);
+    void push_input_convolution(unsigned int filter_size, unsigned int channels,
                                 unsigned int outputs,
                                 const std::vector<float>& weights,
                                 const std::vector<float>& means,
                                 const std::vector<float>& variances);
 
-    void push_residual(unsigned int filter_size,
-                       unsigned int channels,
+    void push_residual(unsigned int filter_size, unsigned int channels,
                        unsigned int outputs,
                        const std::vector<float>& weights_1,
                        const std::vector<float>& means_1,
@@ -113,29 +110,17 @@ private:
                        const std::vector<float>& means_2,
                        const std::vector<float>& variances_2);
 
-    void push_residual_se(unsigned int filter_size,
-        unsigned int channels,
-        unsigned int outputs,
-        const std::vector<float>& weights_1,
-        const std::vector<float>& means_1,
-        const std::vector<float>& variances_1,
-        const std::vector<float>& weights_2,
-        const std::vector<float>& means_2,
-        const std::vector<float>& variances_2,
-        const std::vector<float>& fc1_w,
-        const std::vector<float>& fc1_b,
-        const std::vector<float>& fc2_w,
-        const std::vector<float>& fc2_b);
+    void push_convolve(unsigned int filter_size, unsigned int channels,
+                       unsigned int outputs, const std::vector<float>& weights);
 
-    void push_convolve(unsigned int filter_size,
-                       unsigned int channels,
-                       unsigned int outputs,
-                       const std::vector<float>& weights);
+    void push_se(unsigned int channels, unsigned int outputs,
+                 const std::vector<float>& se_fc1_w,
+                 const std::vector<float>& se_fc1_b,
+                 const std::vector<float>& se_fc2_w,
+                 const std::vector<float>& se_fc2_b);
 
     virtual void drain();
     virtual void resume();
-
-    NetworkType m_net_type;
 };
 
 #endif

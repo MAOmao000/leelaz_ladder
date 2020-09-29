@@ -28,17 +28,18 @@
 */
 
 #include "config.h"
-#include "KoState.h"
 
-#include <cassert>
 #include <algorithm>
+#include <cassert>
 #include <iterator>
+
+#include "KoState.h"
 
 #include "FastBoard.h"
 #include "FastState.h"
 #include "FullBoard.h"
 
-void KoState::init_game(int size, float komi) {
+void KoState::init_game(const int size, const float komi) {
     assert(size <= BOARD_SIZE);
 
     FastState::init_game(size, komi);
@@ -63,11 +64,11 @@ void KoState::reset_game() {
     m_ko_hash_history.push_back(board.get_ko_hash());
 }
 
-void KoState::play_move(int vertex) {
+void KoState::play_move(const int vertex) {
     play_move(board.get_to_move(), vertex);
 }
 
-void KoState::play_move(int color, int vertex) {
+void KoState::play_move(const int color, const int vertex) {
     if (vertex != FastBoard::RESIGN) {
         FastState::play_move(color, vertex);
     }

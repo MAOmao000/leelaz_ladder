@@ -33,9 +33,9 @@
 #include "config.h"
 
 #include <atomic>
-#include <memory>
 #include <cassert>
 #include <cstring>
+#include <memory>
 
 #include "SMP.h"
 
@@ -70,19 +70,19 @@ private:
     // (C-style bit fields and unions are not portable)
     mutable std::atomic<std::uint64_t> m_data{INVALID};
 
-    UCTNode * read_ptr(uint64_t v) const {
+    UCTNode* read_ptr(const uint64_t v) const {
         assert((v & 3ULL) == POINTER);
         return reinterpret_cast<UCTNode*>(v & ~(0x3ULL));
     }
 
-    std::int16_t read_vertex(uint64_t v) const {
+    std::int16_t read_vertex(const uint64_t v) const {
         assert((v & 3ULL) == UNINFLATED);
         return static_cast<std::int16_t>(v >> 16);
     }
 
-    float read_policy(uint64_t v) const {
+    float read_policy(const uint64_t v) const {
         static_assert(sizeof(float) == 4,
-            "This code assumes floats are 32-bit");
+                      "This code assumes floats are 32-bit");
         assert((v & 3ULL) == UNINFLATED);
 
         auto x = static_cast<std::uint32_t>(v >> 32);
@@ -91,7 +91,7 @@ private:
         return ret;
     }
 
-    bool is_inflated(uint64_t v) const {
+    bool is_inflated(const uint64_t v) const {
         return (v & 3ULL) == POINTER;
     }
 
@@ -103,13 +103,12 @@ public:
     UCTNodePointer(std::int16_t vertex, float policy);
     UCTNodePointer(const UCTNodePointer&) = delete;
 
-
     bool is_inflated() const {
         return is_inflated(m_data.load());
     }
 
     // methods from std::unique_ptr<UCTNode>
-    typename std::add_lvalue_reference<UCTNode>::type operator*() const{
+    typename std::add_lvalue_reference<UCTNode>::type operator*() const {
         return *read_ptr(m_data.load());
     }
     UCTNode* operator->() const {
@@ -119,7 +118,7 @@ public:
         return read_ptr(m_data.load());
     }
     UCTNodePointer& operator=(UCTNodePointer&& n);
-    UCTNode * release();
+    UCTNode* release();
 
     // construct UCTNode instance from the vertex/policy pair
     void inflate() const;

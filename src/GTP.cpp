@@ -30,6 +30,7 @@
 #include "config.h"
 
 #include <algorithm>
+#include <boost/algorithm/string.hpp>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -41,9 +42,9 @@
 #include <random>
 #include <string>
 #include <vector>
-#include <boost/algorithm/string.hpp>
 
 #include "GTP.h"
+
 #include "FastBoard.h"
 #include "FullBoard.h"
 #include "GameState.h"
@@ -150,19 +151,16 @@ AnalyzeTags::AnalyzeTags(std::istringstream& cmdstream, const GameState& game) {
                         moves.clear();
                         break;
                     }
-                    auto move1_compressed = game.board.text_to_move(
-                        textmove.substr(0, sepidx)
-                    );
-                    auto move2_compressed = game.board.text_to_move(
-                        textmove.substr(sepidx + 1)
-                    );
+                    auto move1_compressed =
+                        game.board.text_to_move(textmove.substr(0, sepidx));
+                    auto move2_compressed =
+                        game.board.text_to_move(textmove.substr(sepidx + 1));
                     if (move1_compressed == FastBoard::NO_VERTEX ||
                         move1_compressed == FastBoard::PASS ||
                         move1_compressed == FastBoard::RESIGN ||
                         move2_compressed == FastBoard::NO_VERTEX ||
                         move2_compressed == FastBoard::PASS ||
-                        move2_compressed == FastBoard::RESIGN)
-                    {
+                        move2_compressed == FastBoard::RESIGN) {
                         moves.clear();
                         break;
                     }
@@ -174,7 +172,8 @@ AnalyzeTags::AnalyzeTags(std::istringstream& cmdstream, const GameState& game) {
                     auto ymax = std::max(move1_xy.second, move2_xy.second);
                     for (auto move_x = xmin; move_x <= xmax; move_x++) {
                         for (auto move_y = ymin; move_y <= ymax; move_y++) {
-                            moves.push_back(game.board.get_vertex(move_x,move_y));
+                            moves.push_back(
+                                game.board.get_vertex(move_x, move_y));
                         }
                     }
                 } else {
@@ -253,11 +252,13 @@ AnalyzeTags::AnalyzeTags(std::istringstream& cmdstream, const GameState& game) {
     }
 }
 
-void AnalyzeTags::add_move_to_avoid(int color, int vertex, size_t until_move) {
+void AnalyzeTags::add_move_to_avoid(const int color, const int vertex,
+                                    const size_t until_move) {
     m_moves_to_avoid.emplace_back(color, until_move, vertex);
 }
 
-void AnalyzeTags::add_move_to_allow(int color, int vertex, size_t until_move) {
+void AnalyzeTags::add_move_to_allow(const int color, const int vertex,
+                                    const size_t until_move) {
     m_moves_to_allow.emplace_back(color, until_move, vertex);
 }
 
@@ -277,9 +278,11 @@ size_t AnalyzeTags::post_move_count() const {
     return m_min_moves;
 }
 
-bool AnalyzeTags::is_to_avoid(int color, int vertex, size_t movenum) const {
+bool AnalyzeTags::is_to_avoid(const int color, const int vertex,
+                              const size_t movenum) const {
     for (auto& move : m_moves_to_avoid) {
-        if (color == move.color && vertex == move.vertex && movenum <= move.until_move) {
+        if (color == move.color && vertex == move.vertex
+            && movenum <= move.until_move) {
             return true;
         }
     }
@@ -342,7 +345,7 @@ void GTP::setup_default_parameters() {
     cfg_lagbuffer_cs = 100;
     cfg_weightsfile = leelaz_file("best-network");
 #ifdef USE_OPENCL
-    cfg_gpus = { };
+    cfg_gpus = {};
     cfg_sgemm_exhaustive = false;
     cfg_tune_only = false;
 
@@ -389,8 +392,8 @@ void GTP::setup_default_parameters() {
     std::ranlux48 gen(rd());
     std::uint64_t seed1 = (gen() << 16) ^ gen();
     // If the above fails, this is one of our best, portable, bets.
-    std::uint64_t seed2 = std::chrono::high_resolution_clock::
-        now().time_since_epoch().count();
+    std::uint64_t seed2 =
+        std::chrono::high_resolution_clock::now().time_since_epoch().count();
     cfg_rng_seed = seed1 ^ seed2;
 }
 
@@ -415,6 +418,7 @@ const std::string GTP::s_commands[] = {
     "fixed_handicap",
     "last_move",
     "move_history",
+    "clear_cache",
     "place_free_handicap",
     "set_free_handicap",
     "loadsgf",
@@ -444,7 +448,7 @@ const std::string GTP::s_options[] = {
     ""
 };
 
-std::string GTP::get_life_list(const GameState & game, bool live) {
+std::string GTP::get_life_list(const GameState& game, const bool live) {
     std::vector<std::string> stringlist;
     std::string result;
     const auto& board = game.board;
@@ -474,7 +478,7 @@ std::string GTP::get_life_list(const GameState & game, bool live) {
     return result;
 }
 
-void GTP::execute(GameState & game, const std::string& xinput) {
+void GTP::execute(GameState& game, const std::string& xinput) {
     std::string input;
     static auto search = std::make_unique<UCTSearch>(game, *s_network);
 
@@ -490,9 +494,9 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (xinput[tmp] == 9) {
             input += " ";
         } else if ((xinput[tmp] > 0 && xinput[tmp] <= 9)
-                || (xinput[tmp] >= 11 && xinput[tmp] <= 31)
-                || xinput[tmp] == 127) {
-               continue;
+                   || (xinput[tmp] >= 11 && xinput[tmp] <= 31)
+                   || xinput[tmp] == 127) {
+            continue;
         } else {
             if (transform_lowercase) {
                 input += std::tolower(xinput[tmp]);
@@ -546,7 +550,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::istringstream cmdstream(command);
         std::string tmp;
 
-        cmdstream >> tmp;     /* remove known_command */
+        cmdstream >> tmp; /* remove known_command */
         cmdstream >> tmp;
 
         for (int i = 0; s_commands[i].size() > 0; i++) {
@@ -572,7 +576,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::string stmp;
         int tmp;
 
-        cmdstream >> stmp;  // eat boardsize
+        cmdstream >> stmp; // eat boardsize
         cmdstream >> tmp;
 
         if (!cmdstream.fail()) {
@@ -602,7 +606,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         float komi = KOMI;
         float old_komi = game.get_komi();
 
-        cmdstream >> tmp;  // eat komi
+        cmdstream >> tmp; // eat komi
         cmdstream >> komi;
 
         if (!cmdstream.fail()) {
@@ -620,7 +624,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::string tmp;
         std::string color, vertex;
 
-        cmdstream >> tmp;   //eat play
+        cmdstream >> tmp; // eat play
         cmdstream >> color;
         cmdstream >> vertex;
 
@@ -640,7 +644,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
 
         std::istringstream cmdstream(command);
         std::string tmp;
-        cmdstream >> tmp;  // eat genmove
+        cmdstream >> tmp; // eat genmove
 
         int who;
         AnalyzeTags tags;
@@ -668,8 +672,11 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (analysis_output) {
             // Start of multi-line response
             cfg_analyze_tags = tags;
-            if (id != -1) gtp_printf_raw("=%d\n", id);
-            else gtp_printf_raw("=\n");
+            if (id != -1) {
+                gtp_printf_raw("=%d\n", id);
+            } else {
+                gtp_printf_raw("=\n");
+            }
         }
         // start thinking
         {
@@ -710,8 +717,11 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             return;
         }
         // Start multi-line response.
-        if (id != -1) gtp_printf_raw("=%d\n", id);
-        else gtp_printf_raw("=\n");
+        if (id != -1) {
+            gtp_printf_raw("=%d\n", id);
+        } else {
+            gtp_printf_raw("=\n");
+        }
         // Now start pondering.
         if (!game.has_resigned()) {
             cfg_analyze_tags = tags;
@@ -727,7 +737,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::istringstream cmdstream(command);
         std::string tmp;
 
-        cmdstream >> tmp;  // eat kgs-genmove
+        cmdstream >> tmp; // eat kgs-genmove
         cmdstream >> tmp;
 
         if (!cmdstream.fail()) {
@@ -863,27 +873,26 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::string tmp;
         std::string symmetry;
 
-        cmdstream >> tmp;   // eat heatmap
+        cmdstream >> tmp; // eat heatmap
         cmdstream >> symmetry;
 
         Network::Netresult vec;
         if (cmdstream.fail()) {
             // Default = DIRECT with no symmetric change
-            vec = s_network->get_output(
-                &game, Network::Ensemble::DIRECT,
-                Network::IDENTITY_SYMMETRY, false);
+            vec = s_network->get_output(&game, Network::Ensemble::DIRECT,
+                                        Network::IDENTITY_SYMMETRY, false);
         } else if (symmetry == "all") {
             for (auto s = 0; s < Network::NUM_SYMMETRIES; ++s) {
-                vec = s_network->get_output(
-                    &game, Network::Ensemble::DIRECT, s, false);
+                vec = s_network->get_output(&game, Network::Ensemble::DIRECT, s,
+                                            false);
                 Network::show_heatmap(&game, vec, false);
             }
         } else if (symmetry == "average" || symmetry == "avg") {
-            vec = s_network->get_output(
-                &game, Network::Ensemble::AVERAGE, -1, false);
+            vec = s_network->get_output(&game, Network::Ensemble::AVERAGE, -1,
+                                        false);
         } else {
-            vec = s_network->get_output(
-                &game, Network::Ensemble::DIRECT, std::stoi(symmetry), false);
+            vec = s_network->get_output(&game, Network::Ensemble::DIRECT,
+                                        std::stoi(symmetry), false);
         }
 
         if (symmetry != "all") {
@@ -897,7 +906,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::string tmp;
         int stones;
 
-        cmdstream >> tmp;   // eat fixed_handicap
+        cmdstream >> tmp; // eat fixed_handicap
         cmdstream >> stones;
 
         if (!cmdstream.fail() && game.set_fixed_handicap(stones)) {
@@ -918,30 +927,33 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         gtp_printf(id, "%s %s", color, coordinate.c_str());
         return;
     } else if (command.find("move_history") == 0) {
-        if (game.get_movenum() == 0) {
-            gtp_printf_raw("= \n");
-        } else {
-            gtp_printf_raw("= ");
-        }
+        gtp_printf_raw("=%s %s",
+                       id == -1 ? "" : std::to_string(id).c_str(),
+                       game.get_movenum() == 0 ? "\n" : "");
         auto game_history = game.get_game_history();
         // undone moves may still be present, so reverse the portion of the
         // array we need and resize to trim it down for iteration.
         std::reverse(begin(game_history),
                      begin(game_history) + game.get_movenum() + 1);
         game_history.resize(game.get_movenum());
-        for (const auto &state : game_history) {
+        for (const auto& state : game_history) {
             auto coordinate = game.move_to_text(state->get_last_move());
-            auto color = state->get_to_move() == FastBoard::WHITE ? "black" : "white";
+            auto color =
+                state->get_to_move() == FastBoard::WHITE ? "black" : "white";
             gtp_printf_raw("%s %s\n", color, coordinate.c_str());
         }
         gtp_printf_raw("\n");
+        return;
+    } else if (command.find("clear_cache") == 0) {
+        s_network->nncache_clear();
+        gtp_printf(id, "");
         return;
     } else if (command.find("place_free_handicap") == 0) {
         std::istringstream cmdstream(command);
         std::string tmp;
         int stones;
 
-        cmdstream >> tmp;   // eat place_free_handicap
+        cmdstream >> tmp; // eat place_free_handicap
         cmdstream >> stones;
 
         if (!cmdstream.fail()) {
@@ -957,7 +969,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::istringstream cmdstream(command);
         std::string tmp;
 
-        cmdstream >> tmp;   // eat set_free_handicap
+        cmdstream >> tmp; // eat set_free_handicap
 
         do {
             std::string vertex;
@@ -982,7 +994,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::string tmp, filename;
         int movenum;
 
-        cmdstream >> tmp;   // eat loadsgf
+        cmdstream >> tmp; // eat loadsgf
         cmdstream >> filename;
 
         if (!cmdstream.fail()) {
@@ -1063,7 +1075,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::string tmp;
         int iterations;
 
-        cmdstream >> tmp;  // eat netbench
+        cmdstream >> tmp; // eat netbench
         cmdstream >> iterations;
 
         if (!cmdstream.fail()) {
@@ -1078,7 +1090,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::istringstream cmdstream(command);
         std::string tmp, filename;
 
-        cmdstream >> tmp;   // eat printsgf
+        cmdstream >> tmp; // eat printsgf
         cmdstream >> filename;
 
         auto sgf_text = SGFTree::state_to_string(game, 0);
@@ -1117,7 +1129,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::string tmp, filename;
 
         // tmp will eat "save_training"
-        cmdstream >> tmp >>  filename;
+        cmdstream >> tmp >> filename;
 
         Training::save_training(filename);
 
@@ -1192,9 +1204,10 @@ void GTP::execute(GameState & game, const std::string& xinput) {
 
         auto total = base_memory + tree_size + cache_size;
         gtp_printf(id,
-            "Estimated total memory consumption: %d MiB.\n"
-            "Network with overhead: %d MiB / Search tree: %d MiB / Network cache: %d\n",
-            total / MiB, base_memory / MiB, tree_size / MiB, cache_size / MiB);
+                   "Estimated total memory consumption: %d MiB.\n"
+                   "Network with overhead: %d MiB / Search tree: %d MiB / Network cache: %d\n",
+                   total / MiB, base_memory / MiB, tree_size / MiB,
+                   cache_size / MiB);
         return;
     } else if (command.find("lz-setoption") == 0) {
         return execute_setoption(*search.get(), id, command);
@@ -1231,8 +1244,8 @@ size_t GTP::get_base_memory() {
 #endif
 }
 
-std::pair<bool, std::string> GTP::set_max_memory(size_t max_memory,
-    int cache_size_ratio_percent) {
+std::pair<bool, std::string> GTP::set_max_memory(
+    size_t max_memory, const int cache_size_ratio_percent) {
     if (max_memory == 0) {
         max_memory = UCTSearch::DEFAULT_MAX_MEMORY;
     }
@@ -1242,16 +1255,17 @@ std::pair<bool, std::string> GTP::set_max_memory(size_t max_memory,
     auto base_memory = get_base_memory();
 
     if (max_memory < base_memory) {
-        return std::make_pair(false, "Not enough memory for network. " +
-            std::to_string(base_memory / MiB) + " MiB required.");
+        return std::make_pair(false, "Not enough memory for network. "
+                                         + std::to_string(base_memory / MiB)
+                                         + " MiB required.");
     }
 
     auto max_memory_for_search = max_memory - base_memory;
 
     assert(cache_size_ratio_percent >= 1);
     assert(cache_size_ratio_percent <= 99);
-//    auto max_cache_size = max_memory_for_search *
-//        cache_size_ratio_percent / 100;
+//    auto max_cache_size =
+//        max_memory_for_search * cache_size_ratio_percent / 100;
 // for 32bit os
     auto max_cache_size = max_memory_for_search / 100 * cache_size_ratio_percent;
 
@@ -1276,14 +1290,14 @@ std::pair<bool, std::string> GTP::set_max_memory(size_t max_memory,
     // Resize cache.
     s_network->nncache_resize(max_cache_count);
 
-    return std::make_pair(true, "Setting max tree size to " +
-        std::to_string(max_tree_size / MiB) + " MiB and cache size to " +
-        std::to_string(max_cache_size / MiB) +
-        " MiB.");
+    return std::make_pair(
+        true, "Setting max tree size to " + std::to_string(max_tree_size / MiB)
+                  + " MiB and cache size to "
+                  + std::to_string(max_cache_size / MiB) + " MiB.");
 }
 
-void GTP::execute_setoption(UCTSearch & search,
-                            int id, const std::string &command) {
+void GTP::execute_setoption(UCTSearch& search, const int id,
+                            const std::string& command) {
     std::istringstream cmdstream(command);
     std::string tmp, name_token;
 
@@ -1319,8 +1333,8 @@ void GTP::execute_setoption(UCTSearch & search,
             }
             bool result;
             std::string reason;
-            std::tie(result, reason) = set_max_memory(max_memory_in_mib * MiB,
-                cfg_max_cache_ratio_percent);
+            std::tie(result, reason) = set_max_memory(
+                max_memory_in_mib * MiB, cfg_max_cache_ratio_percent);
             if (result) {
                 gtp_printf(id, reason.c_str());
             } else {
@@ -1341,8 +1355,8 @@ void GTP::execute_setoption(UCTSearch & search,
         }
         bool result;
         std::string reason;
-        std::tie(result, reason) = set_max_memory(cfg_max_memory,
-            cache_size_ratio_percent);
+        std::tie(result, reason) =
+            set_max_memory(cfg_max_memory, cache_size_ratio_percent);
         if (result) {
             gtp_printf(id, reason.c_str());
         } else {
